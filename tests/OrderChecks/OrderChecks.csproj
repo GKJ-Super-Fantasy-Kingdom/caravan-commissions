@@ -4,6 +4,7 @@
     <TargetFramework>net8.0</TargetFramework>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../../src/OfferIds.cs" Link="OfferIds.cs" />
     <Compile Include="../../src/OrderBook.cs" Link="OrderBook.cs" />
   </ItemGroup>
 </Project>

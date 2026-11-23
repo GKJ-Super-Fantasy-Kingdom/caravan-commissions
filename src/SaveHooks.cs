@@ -1,72 +1,120 @@
 using System;
+using System.Reflection;
+using System.Runtime.CompilerServices;
 using HarmonyLib;
+using Newtonsoft.Json;
 using SuperFantasyKingdom;
+using SuperFantasyKingdom.Tavern;
 using UnityEngine;
 
 namespace CaravanCommissions
 {
     internal static class SaveHooks
     {
-        // Match the exact JSON selected by the game, including a restored backup.
-        // Unity ignores the extra member when deserializing vanilla GameData.
+        private const string Key = "caravanCommissionsV1";
         [Serializable]
-        private sealed class Extension
+        private sealed class Envelope
         {
+#pragma warning disable CS0649 // The game's serializer populates these fields.
+            public string runID, hash;
             public OrderBook caravanCommissionsV1;
+#pragma warning restore CS0649
         }
 
-        private static bool reading, writing;
-        private static OrderBook loaded;
-
-        [HarmonyPatch(typeof(GameDataManager), nameof(GameDataManager.PositionWorldBuildings))]
-        internal static class ReadScope
+        private sealed class ReadContext
         {
-            static void Prefix() { loaded = null; reading = true; }
-            static void Finalizer() { reading = false; }
+            internal string Path;
+            internal Envelope Selected;
+        }
+        private static readonly ConditionalWeakTable<GameData, OrderBook> Checkpoints =
+            new ConditionalWeakTable<GameData, OrderBook>();
+        private static ReadContext reading;
+        private static OrderBook writing;
+        private static string writePath;
+
+        private static void Attach(GameData data)
+        {
+            var entry = reading?.Selected;
+            if (entry?.caravanCommissionsV1?.spent == null || data == null ||
+                data.runID != entry.runID || data.hash != entry.hash) return;
+            Checkpoints.Remove(data);
+            Checkpoints.Add(data, entry.caravanCommissionsV1);
         }
 
         [HarmonyPatch]
-        internal static class ReadJson
+        private static class ReadScope
         {
-            static System.Reflection.MethodBase TargetMethod() =>
-                AccessTools.FirstMethod(typeof(SaveManager), m => m.Name == "Load" &&
-                    !m.IsGenericMethod && m.ReturnType == typeof(string));
-
-            static void Postfix(string __result)
+            static MethodBase[] TargetMethods() => new[] {
+                AccessTools.Method(typeof(GameDataManager), nameof(GameDataManager.PositionWorldBuildings)),
+                AccessTools.Method(typeof(TavernSaveManager), "Load") };
+            static void Prefix(object __instance, out ReadContext __state)
             {
-                if (!reading || string.IsNullOrEmpty(__result)) return;
-                var order = JsonUtility.FromJson<Extension>(__result)?.caravanCommissionsV1;
-                if (order != null && order.spent != null) loaded = order;
+                __state = reading;
+                reading = new ReadContext { Path = (string)AccessTools.Method(__instance.GetType(), "GetPath").Invoke(__instance, null) };
+            }
+            static void Postfix(GameData ___m_GameData) => Attach(___m_GameData);
+            static void Finalizer(ReadContext __state) => reading = __state;
+        }
+
+        [HarmonyPatch(typeof(SaveManager), nameof(SaveManager.LoadGameData))]
+        private static class TavernCheckpoint
+        {
+            // The tavern clears GameData.hash immediately after this call returns.
+            static void Postfix(GameData __result) => Attach(__result);
+        }
+
+        [HarmonyPatch]
+        private static class ReadJson
+        {
+            static MethodBase TargetMethod() => AccessTools.FirstMethod(typeof(SaveManager),
+                m => m.Name == "Load" && !m.IsGenericMethod && m.ReturnType == typeof(string));
+
+            static void Postfix(string __0, string __result)
+            {
+                if (reading == null || __0 != reading.Path) return;
+                reading.Selected = null;
+                if (string.IsNullOrEmpty(__result) || !__result.Contains("\"" + Key + "\"")) return;
+                // Unity's player serializer drops nested mod-defined classes from its envelope.
+                try { reading.Selected = JsonConvert.DeserializeObject<Envelope>(__result); }
+                catch (JsonException) { /* Let the native loader try its backup. */ }
             }
         }
 
         [HarmonyPatch(typeof(GameDataManager), nameof(GameDataManager.Load))]
-        internal static class Restore
+        private static class Restore
         {
-            static void Prefix(GameData ___m_GameData)
-            {
-                Plugin.Reset(___m_GameData == null ? null : loaded);
-                loaded = null;
-            }
+            static void Prefix(GameData ___m_GameData) => Plugin.Reset(
+                ___m_GameData != null && Checkpoints.TryGetValue(___m_GameData, out var book) ? book : null);
         }
 
-        [HarmonyPatch(typeof(GameDataManager), nameof(GameDataManager.Save))]
-        internal static class WriteScope
+        [HarmonyPatch]
+        private static class WriteScope
         {
-            static void Prefix() { writing = true; }
-            static void Finalizer() { writing = false; }
+            static MethodBase[] TargetMethods() => new[] {
+                AccessTools.Method(typeof(GameDataManager), nameof(GameDataManager.Save)),
+                AccessTools.Method(typeof(TavernSaveManager), nameof(TavernSaveManager.Save)) };
+            static void Prefix(object __instance, out (OrderBook, string) __state)
+            {
+                __state = (writing, writePath);
+                writePath = (string)AccessTools.Method(__instance.GetType(), "GetPath").Invoke(__instance, null);
+                if (__instance is TavernSaveManager tavern)
+                {
+                    var data = tavern.GetGameData();
+                    writing = data != null && Checkpoints.TryGetValue(data, out var saved) ? saved : null;
+                }
+                else writing = Plugin.Book;
+            }
+            static void Finalizer((OrderBook, string) __state) => (writing, writePath) = __state;
         }
 
         [HarmonyPatch(typeof(SaveManager), nameof(SaveManager.Save), typeof(string), typeof(string))]
-        internal static class WriteJson
+        private static class WriteJson
         {
             static void Prefix(string __0, ref string __1)
             {
-                if (!writing || !__0.EndsWith("_game", StringComparison.Ordinal) ||
-                    (!Plugin.Book.Pending && Plugin.Book.spent.Count == 0)) return;
-                var extra = JsonUtility.ToJson(new Extension { caravanCommissionsV1 = Plugin.Book });
+                if (writing == null || __0 != writePath || (!writing.Pending && writing.spent.Count == 0)) return;
                 int end = __1.LastIndexOf('}');
-                __1 = __1.Insert(end, "," + extra.Substring(1, extra.Length - 2));
+                if (end >= 0) __1 = __1.Insert(end, ",\"" + Key + "\":" + JsonUtility.ToJson(writing));
             }
         }
     }

@@ -43,4 +43,50 @@ foreach (var next in new[] { 16, 17, 23 })
     Check("backup keeps earlier pending order", deferred.Pending && deferred.pool == "Pool");
 }
 Check("new run starts empty", !new OrderBook().Pending);
+var catalog = new System.Collections.Generic.Dictionary<string, string> {
+    ["alias"] = "mod.B", ["A"] = "A", ["mod.B"] = "mod.B", ["C"] = "C", ["D"] = "D", ["E"] = "E",
+    ["broken"] = "unregistered"
+};
+string Identify(string id) => catalog.TryGetValue(id, out var canonical) ? canonical : null;
+var ids = OfferIds.FromPool(new[] { null, "A", "alias", "mod.B", "broken", "C", "D", "E" }, Identify);
+Check("resolve aliases and exclude broken registrations", ids.SequenceEqual(new[] { "A", "mod.B", "C", "D", "E" }));
+var pages = OfferIds.Pages(ids).ToArray();
+Check("appended custom items can be previewed", pages.Length == 2 && pages.SelectMany(x => x).Distinct().SequenceEqual(ids));
+Check("every page contains three distinct actual items", pages.All(x => x.Length == 3 && x.Distinct().Count() == 3));
+Check("short pools cannot hang", OfferIds.Draw(new[] { "A" }, _ => 0).SequenceEqual(new[] { "A" }));
+Check("empty pools never ask the RNG", OfferIds.Draw(Array.Empty<string>(), _ => throw new Exception()).Length == 0);
+Check("stuck modded RNG terminates", OfferIds.Draw(ids, _ => 0).Distinct().Count() == 3);
+var once = new OrderBook();
+once.BeginDay(16);
+Check("reentrant payment blocked", once.Place(16, 1, "Original", pages[0],
+    () => !once.Place(16, 1, "Duplicate", pages[0], () => throw new Exception())));
+var snapshot = once.items;
+once.BeginDay(17);
+catalog["A"] = "D";
+Check("rebound key cannot deliver the wrong identity", !once.Claim(17, 1, snapshot, "A", Identify, _ => throw new Exception()));
+Check("replacement requires a complete resolvable preview", !once.Exchange(17, 1, snapshot, "Invalid", pages[0], Identify));
+Check("remaining item can settle a partial order once", once.Claim(17, 1, snapshot, "C", Identify, id =>
+{
+    Check("reentrant grant blocked", !once.Claim(17, 1, snapshot, id, Identify, _ => throw new Exception()));
+    Check("defer during grant blocked", !once.Finish(17, 1, false));
+    return true;
+}));
+var source = new[] { "A", "A", "A", "B", "C", "D" };
+var weighted = OfferIds.Weighted(source, id => id);
+Check("first ordinary draw retains all weighted positions", Enumerable.Range(0, source.Length).All(slot =>
+{
+    int n = slot;
+    var draw = OfferIds.Draw(weighted, max => n++ % max);
+    return draw.Length == 3 && draw.Distinct().Count() == 3 && draw[0] == source[slot];
+}));
+var visits = new OrderBook();
+int dawn = visits.StartVisit(16, true);
+Check("order at the dawn visit", visits.Place(16, dawn, "Pool", source.Distinct().Take(3).ToArray(), () => true));
+visits = Copy(visits);
+Check("new invitation after resume is available without replay", visits.Available(16, visits.StartVisit(16, false)));
+Check("replayed dawn remains spent after another invitation", !visits.Available(16, visits.StartVisit(16, true)));
+Check("next dawn can deliver", visits.Available(17, visits.StartVisit(17, true)) && visits.Pending);
+var legacy = new OrderBook { day = 16, spent = new() { 1, 3 } };
+Check("legacy spent ordinals migrate without blocking a new invitation",
+    legacy.StartVisit(16, false) == 4 && legacy.StartVisit(16, true) == 1);
 Console.WriteLine($"{passed} order checks passed.");
