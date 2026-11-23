@@ -16,6 +16,7 @@ framework = project.findtext(".//TargetFramework")
 if version != project.findtext(".//Version") or manifest["name"] != "CaravanCommissions":
     raise SystemExit("Package identity does not match the project.")
 files = {
+    "LICENSE": root / "LICENSE",
     "manifest.json": listing / "manifest.json",
     "README.md": root / "README.md",
     "CHANGELOG.md": root / "CHANGELOG.md",

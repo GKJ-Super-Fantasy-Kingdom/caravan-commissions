@@ -36,3 +36,9 @@ python package.py
 ```
 
 The local import ZIP is written to `dist/CaravanCommissions-0.1.0.zip`. The order checks exercise the transaction and checkpoint model offline. Import, native save/load, game visuals and physical controller operation require a live playtest.
+
+## Contributing and license
+
+Bug reports and pull requests are welcome. See the [contribution guide](CONTRIBUTING.md) for local testing and reporting instructions.
+
+The original mod code is available under the [MIT License](LICENSE). Super Fantasy Kingdom, its game assets, and third-party dependencies retain their respective licenses and ownership.
