@@ -1,12 +1,20 @@
 # Caravan Commissions
 
-Choose one of the caravan’s three item cards to take it now. For a future offer, select **Compare Commissions**. The desk shows today’s items alongside the selected kingdom’s three items, including their effects. Use **Previous Pool** and **Next Pool** to compare kingdoms. **Today’s Items** returns to the native picker.
+Take a caravan item now, or spend three materials to reserve a choice of three items from another kingdom at a later visit. **Compare Commissions** shows today’s cards beside the future choices. Use **Previous Pool** and **Next Pool** to browse, or **Today's Items** to return to the native picker.
 
-**Review Order** shows the price again before payment. **Back to Pool** keeps the same pool selected. Confirming spends three units of the displayed material and uses today’s pick. The test price uses the kingdom’s wood material, with stone and boards as fallbacks where wood has no source. Available stock excludes reserved packets. The home kingdom is excluded from the pool list.
+![The offer desk compares today's three cards with Burn, Hammer, and Rage from the Demon kingdom](https://raw.githubusercontent.com/GKJ-Super-Fantasy-Kingdom/caravan-commissions/main/docs/screenshots/0.1.0/offers.png)
+
+**Review Order** shows the cost alongside your available stock. **Back to Pool** keeps your selection. **Pay and Commission** spends three units of the displayed material and uses today’s pick. The fee uses the kingdom’s wood material, with stone and boards as fallbacks where wood has no source. Available stock excludes reserved packets.
+
+![Confirmation shows a fee of 3 Wood and 6 Wood available, with Pay and Commission focused](https://raw.githubusercontent.com/GKJ-Super-Fantasy-Kingdom/caravan-commissions/main/docs/screenshots/0.1.0/confirm.png)
 
 ## Delivery and saves
 
 The next distinct item caravan in the same run delivers the promised three choices. Take one item using the normal caravan cards, or choose **Defer Delivery** to keep the same pool for a later visit. Reopening the ordering caravan cannot deliver the order. One order can be outstanding per run.
+
+![The next caravan offers the promised Burn, Hammer, and Rage cards with Defer Delivery below](https://raw.githubusercontent.com/GKJ-Super-Fantasy-Kingdom/caravan-commissions/main/docs/screenshots/0.1.0/delivery.png)
+
+The screenshots show the same order in an isolated Forester run at 1.5× UI scale using simulated gamepad input.
 
 Both planned and reputation caravans can deliver. With Daily Caravan enabled, its next actual visit can deliver. A missed day or a schedule change does not erase an order. The commission itself never schedules visitors.
 
@@ -24,11 +32,11 @@ The game’s ordinary merchant cards keep their prices. The comparison desk disp
 
 Ordinary draws retain repeated pool entries as weights. A delivery settles when a new native draggable item with the promised ID appears. If another mod suppresses that spawn, the order remains available at a later caravan. If a hook throws after the drop appears, the order settles once. Providers that equip items directly, deliver asynchronously, or replay custom invitations need a separate integration to identify that reward or visit.
 
-## Local import
+## Installation and controls
 
-1. In Thunderstore Mod Manager or r2modman, select Super Fantasy Kingdom and an isolated test profile. Install the BepInEx pack and HideManagerGameObject configuration listed in the manifest if needed.
-2. In profile settings, choose **Import local mod** and select **CaravanCommissions-0.1.0.zip**. Check version 0.1.0 in the mod list.
-3. When the shared game test slot is available, start the profile modded. Check the BepInEx log for `Caravan Commissions 0.1.0 loaded` and visit a caravan in a test run.
+1. Select **Super Fantasy Kingdom** and your profile in Thunderstore Mod Manager or r2modman. Install **CaravanCommissions** and its listed BepInEx dependencies. For a local ZIP, choose **Import local mod** and select `CaravanCommissions-0.1.0.zip`.
+2. Start the game modded and visit an item caravan. **Compare Commissions** opens the desk.
+3. Use the D-pad or keyboard navigation to move focus. Submit activates the focused button, and the displayed Back binding backs out from anywhere on the desk. Mouse users can click the buttons directly.
 
 ## Controller playtest
 
@@ -53,8 +61,8 @@ The local import ZIP is written to `dist/CaravanCommissions-0.1.0.zip`. The orde
 
 ## Contributing and license
 
-Bug reports and pull requests are welcome. See the [contribution guide](CONTRIBUTING.md) for local testing and reporting instructions.
+Bug reports and pull requests are welcome. The guide includes instructions for testing and reporting issues. [Contribution guide](https://github.com/GKJ-Super-Fantasy-Kingdom/caravan-commissions/blob/main/CONTRIBUTING.md)
 
-The original mod code is available under the [MIT License](LICENSE). Super Fantasy Kingdom, its game assets, and third-party dependencies retain their respective licenses and ownership.
+The original mod code is available under the MIT License. Super Fantasy Kingdom, its game assets, and third-party dependencies retain their respective licenses and ownership. [MIT License](https://github.com/GKJ-Super-Fantasy-Kingdom/caravan-commissions/blob/main/LICENSE)
 
 For an offline comparison using installed managed assemblies, run `tests/InstalledChecks/run.ps1` in Windows PowerShell 5.1. Supply `-GameDir` and `-CoreDir` (the profile’s BepInEx core folder). Optionally pass `-DailyDll` and/or `-CheatDll` to use their real dispatch and production-yield methods. Run each combination in a fresh process. The probe uses a fixture item pack and grant recorder. It reads its fixtures through the mod’s checkpoint deserializer. It does not launch the game.
