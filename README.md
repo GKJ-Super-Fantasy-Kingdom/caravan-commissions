@@ -1,4 +1,6 @@
-Take an item from today’s caravan, or spend three materials to reserve a choice of three items from another kingdom. You can see exactly which items the next caravan will bring before you pay.
+# Caravan Commissions
+
+Take an item from today’s caravan, or spend three materials to reserve a choice of three items from another kingdom. You can see exactly which items the next item caravan will bring before you pay.
 
 ## Features
 
@@ -9,10 +11,11 @@ Take an item from today’s caravan, or spend three materials to reserve a choic
 ## How to Use
 
 1. At an item caravan, select **Compare Commissions**. Use **Previous Pool** and **Next Pool** to browse other kingdoms, or **Today's Items** to return and take a card now.
+
+   On the desk, move focus with the arrow keys, WASD, or the D-pad. Press **Enter** or the bottom face button (**A** on Xbox) to select. Press **Esc** or the right face button (**B** on Xbox) to go back. You can also click buttons with the mouse.
+
 2. Select **Review Order** to check the three promised items and the price. **Back to Pool** lets you reconsider. **Pay and Commission** takes the displayed materials once and uses today’s pick.
 3. At the next distinct item caravan, choose one of the three delivery cards to receive it as a draggable item. Choose **Defer Delivery** to keep all three choices for a later visit at no extra cost.
-
-On the desk, use the arrow keys or WASD to move focus, **Enter** to activate the focused button, and **Esc** to go back. On a controller, use the D-pad, the bottom face button to confirm, and the right face button to go back (**A** and **B** on Xbox). You can also click a button with the mouse.
 
 ## Screenshots
 
@@ -32,12 +35,14 @@ These in-game captures show the same order in version 0.1.0 at 1.5× UI scale, u
 
 ## Compatibility
 
-Works with the vanilla caravan schedule, including reputation visits, and with Daily Caravan. Reopening the same caravan keeps its original decision. Reloading a checkpoint restores the order and materials as they were at that checkpoint.
-
-Items added by other mods need stable IDs that the game can resolve. If a promised item disappears, you can take a remaining card, defer, or use **Exchange Order** to reserve another complete pool for free. Mods that replace the entire picker or equip rewards directly need a separate integration.
+- On the vanilla schedule, the next item caravan can be a scheduled visit or a reputation visit. With GKJ’s [Daily Caravan](https://thunderstore.io/c/super-fantasy-kingdom/p/GKJ/DailyCaravan/), your delivery is ready at the next actual item visit. Reopening the same visit keeps your original decision.
+- With GKJ’s [Kingdom Charters](https://thunderstore.io/c/super-fantasy-kingdom/p/GKJ/KingdomCharters/), the Merchant Charter charges its extra coin for an immediate pick. Collecting a prepaid commission is free of that fee.
+- With ILM’s [CheatMenu](https://thunderstore.io/c/super-fantasy-kingdom/p/ILM/CheatMenu/) 1.0.3, an offline check at 3× production yield confirmed that placing an order deducts the displayed three materials once.
+- Reloading a checkpoint restores both your order and your material stock to that point in the run.
+- Modded items need stable IDs that the game can look up after a reload. If a promised item disappears, take a remaining card, defer delivery, or use **Exchange Order** to reserve another complete pool for free. Mods that replace the item picker or equip rewards directly need a separate integration.
 
 ## Installation
 
-1. In Thunderstore Mod Manager or r2modman, select **Super Fantasy Kingdom** and your profile.
-2. Install **CaravanCommissions** by **GKJ** along with its listed dependencies, **BepInExPack** and **HideManagerGameObject_Config**. For a local ZIP, install the dependencies and use **Import local mod**.
+1. In Thunderstore Mod Manager or [r2modman](https://thunderstore.io/c/super-fantasy-kingdom/p/ebkr/r2modman/), select **Super Fantasy Kingdom** and your profile.
+2. Install **CaravanCommissions** by **GKJ** along with its listed dependencies, [BepInExPack](https://thunderstore.io/c/super-fantasy-kingdom/p/BepInEx/BepInExPack/) and [HideManagerGameObject_Config](https://thunderstore.io/c/super-fantasy-kingdom/p/BepInEx/HideManagerGameObject_Config/). For a local ZIP, install the dependencies and use **Import local mod**.
 3. Start the game modded. **Compare Commissions** appears when an item caravan opens.
