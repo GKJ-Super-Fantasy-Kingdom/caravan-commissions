@@ -1,3 +1,17 @@
+# 0.1.3
+
+- Browse kingdoms with the arrows beside the future offer. Choose today’s cards or review the order directly below its card.
+- Confirmation shows the three reserved items, fee, and spendable stock together. Back restores focus to the same offer.
+
+# 0.1.2
+
+- The comparison desk shows the immediate picker's card text, including added fees, alongside the kingdom's next-caravan choices.
+- The payment row pairs the kingdom's material icon with the fee, stock and any shortfall. You can review an order before you have enough materials.
+
+# 0.1.1
+
+- Expose a read-only query for calendar mods to distinguish a pending commission from a delivery offered today. The integration is optional.
+
 # 0.1.0
 
 First release for Super Fantasy Kingdom.

@@ -10,34 +10,35 @@ Take an item from today’s caravan, or spend three materials to reserve a choic
 
 ## How to Use
 
-1. At an item caravan, select **Compare Commissions**. Use **Previous Pool** and **Next Pool** to browse other kingdoms, or **Today's Items** to return and take a card now.
+1. At an item caravan, select **Compare Commissions**. Use the arrows beside the future offer’s heading to browse other kingdoms, or **Today's Items** to return and take a card now.
 
    On the desk, move focus with the arrow keys, WASD, or the D-pad. Press **Enter** or the bottom face button (**A** on Xbox) to select. Press **Esc** or the right face button (**B** on Xbox) to go back. You can also click buttons with the mouse.
 
-2. Select **Review Order** to check the three promised items and the price. **Back to Pool** lets you reconsider. **Pay and Commission** takes the displayed materials once and uses today’s pick.
+2. Select **Review Order** to check the three promised items and the price. **Back** returns to the same pool. **Pay and Commission** takes the displayed materials once and uses today’s pick.
 3. At the next distinct item caravan, choose one of the three delivery cards to receive it as a draggable item. Choose **Defer Delivery** to keep all three choices for a later visit at no extra cost.
 
 ## Screenshots
 
-These in-game captures show the same order in version 0.1.0 at 1.5× UI scale, using simulated controller input.
+Captured in Super Fantasy Kingdom 0.8.068 with Caravan Commissions 0.1.3 and a virtual gamepad.
 
-![The offer desk compares today’s Thorns, Rejuvenate, and Speed with the Demon kingdom’s Burn, Hammer, and Rage](https://raw.githubusercontent.com/GKJ-Super-Fantasy-Kingdom/caravan-commissions/main/docs/screenshots/0.1.0/offers.png)
+![Offer desk with today's items on the left, arrows beside the Demon pool on the right, and Review Order focused](https://raw.githubusercontent.com/GKJ-Super-Fantasy-Kingdom/caravan-commissions/main/docs/screenshots/0.1.3/offers.png)
 
-*Compare the two columns. The three cards on the right are the choices you are reserving.*
+*At 1×, use the arrows beside Demon to change the future offer. Today's Items returns you to the caravan's first card.*
 
-![The confirmation screen shows a cost of 3 Wood, 6 Wood available, and Pay and Commission in focus](https://raw.githubusercontent.com/GKJ-Super-Fantasy-Kingdom/caravan-commissions/main/docs/screenshots/0.1.0/confirm.png)
+![Confirmation showing Burn, Hammer and Rage above a 3-wood fee, 7 wood in stock and the focused payment button](https://raw.githubusercontent.com/GKJ-Super-Fantasy-Kingdom/caravan-commissions/main/docs/screenshots/0.1.3/confirm.png)
 
-*Check the stock beside the price before confirming. This order costs 3 of the 6 wood available.*
+*At 1.5×, check the three promised choices and your stock before paying. Back returns to the same pool.*
 
-![The delivery screen shows Burn, Hammer, and Rage, with Hammer focused and Defer Delivery below](https://raw.githubusercontent.com/GKJ-Super-Fantasy-Kingdom/caravan-commissions/main/docs/screenshots/0.1.0/delivery.png)
+![Delivery picker showing Burn, Hammer and Rage with Hammer focused and Defer Delivery below](https://raw.githubusercontent.com/GKJ-Super-Fantasy-Kingdom/caravan-commissions/main/docs/screenshots/0.1.3/delivery.png)
 
-*Pick one of the promised cards, or use the button beneath them to wait for another visit.*
+*At 1.5×, choose one prepaid item to collect it, or defer to keep all three choices for a later visit.*
 
 ## Compatibility
 
 - On the vanilla schedule, the next item caravan can be a scheduled visit or a reputation visit. With GKJ’s [Daily Caravan](https://thunderstore.io/c/super-fantasy-kingdom/p/GKJ/DailyCaravan/), your delivery is ready at the next actual item visit. Reopening the same visit keeps your original decision.
 - With GKJ’s [Kingdom Charters](https://thunderstore.io/c/super-fantasy-kingdom/p/GKJ/KingdomCharters/), the Merchant Charter charges its extra coin for an immediate pick. Collecting a prepaid commission is free of that fee.
 - With ILM’s [CheatMenu](https://thunderstore.io/c/super-fantasy-kingdom/p/ILM/CheatMenu/) 1.0.3, an offline check at 3× production yield confirmed that placing an order deducts the displayed three materials once.
+- With GKJ’s [Visitor Calendar](https://thunderstore.io/c/super-fantasy-kingdom/p/GKJ/VisitorCalendar/) 0.1.1 or later, **Next Caravan** marks an undated order. An open or minimized eligible picker shows **Commission Delivery** on that day. Collecting clears the entry.
 - Reloading a checkpoint restores both your order and your material stock to that point in the run.
 - Modded items need stable IDs that the game can look up after a reload. If a promised item disappears, take a remaining card, defer delivery, or use **Exchange Order** to reserve another complete pool for free. Mods that replace the item picker or equip rewards directly need a separate integration.
 

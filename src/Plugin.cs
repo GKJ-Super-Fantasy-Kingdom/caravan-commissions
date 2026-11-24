@@ -12,11 +12,13 @@ using UnityEngine;
 
 namespace CaravanCommissions
 {
-    [BepInPlugin("gkj.sfk.caravancommissions", "Caravan Commissions", "0.1.0")]
+    [BepInPlugin("gkj.sfk.caravancommissions", "Caravan Commissions", "0.1.3")]
     [BepInDependency("sfk.dailycaravan", BepInDependency.DependencyFlags.SoftDependency)]
     internal sealed class Plugin : BaseUnityPlugin
     {
         internal static OrderBook Book = new OrderBook();
+        private static GameDataManager bookScene;
+        internal static bool IsCurrentRun => bookScene && ReferenceEquals(bookScene, GameDataManager.Instance);
         internal static CommissionPanel Panel;
         private static ConditionalWeakTable<UIOverlayMerchant, Visit> screens = new ConditionalWeakTable<UIOverlayMerchant, Visit>();
         private static ConditionalWeakTable<GuestCaravan, Visit> arrivals = new ConditionalWeakTable<GuestCaravan, Visit>();
@@ -34,6 +36,20 @@ namespace CaravanCommissions
 
         private static readonly AccessTools.FieldRef<OverlayManager, UIOverlayBase> CurrentOverlay =
             AccessTools.FieldRefAccess<OverlayManager, UIOverlayBase>("m_CurrentlyOpen");
+        private static readonly AccessTools.FieldRef<OverlayManager, UIOverlayBase> BackupOverlay =
+            AccessTools.FieldRefAccess<OverlayManager, UIOverlayBase>("m_Backup");
+
+        internal static int ConfirmedDeliveryDay()
+        {
+            var overlays = OverlayManager.Instance;
+            var clock = DaytimeManager.Instance;
+            if (!overlays || !clock) return -1;
+            int today = clock.CurrentDay();
+            bool Eligible(UIOverlayBase overlay) => overlay is UIOverlayMerchant merchant &&
+                screens.TryGetValue(merchant, out var visit) && visit.Day == today && Book.Available(today, visit.Number);
+            return (overlays.IsOpen() && Eligible(CurrentOverlay(overlays))) ||
+                (overlays.HasMinimizedOverlay() && Eligible(BackupOverlay(overlays))) ? today : -1;
+        }
         internal static bool IsCurrent(UIOverlayMerchant screen) => OverlayManager.Instance != null &&
             screen != null && screen.isActiveAndEnabled && ReferenceEquals(CurrentOverlay(OverlayManager.Instance), screen);
 
@@ -50,13 +66,14 @@ namespace CaravanCommissions
             }
             harmony = new Harmony("gkj.sfk.caravancommissions");
             harmony.PatchAll(typeof(Plugin).Assembly);
-            Logger.LogInfo("Caravan Commissions 0.1.0 loaded");
+            Logger.LogInfo("Caravan Commissions 0.1.3 loaded");
         }
 
         private void OnDestroy()
         {
             if (Panel != null) Panel.Dismiss();
             harmony?.UnpatchSelf();
+            bookScene = null;
             dailyDispatch = null;
             Log = null;
         }
@@ -65,6 +82,7 @@ namespace CaravanCommissions
         {
             if (Panel != null) Panel.Dismiss();
             Book = saved ?? new OrderBook();
+            bookScene = GameDataManager.Instance;
             arrivals = new ConditionalWeakTable<GuestCaravan, Visit>();
             screens = new ConditionalWeakTable<UIOverlayMerchant, Visit>();
             opening = null;

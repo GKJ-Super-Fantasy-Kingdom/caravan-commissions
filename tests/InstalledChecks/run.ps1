@@ -2,7 +2,8 @@ param(
     [Parameter(Mandatory)] [string] $GameDir,
     [Parameter(Mandatory)] [string] $CoreDir,
     [string] $CheatDll,
-    [string] $DailyDll
+    [string] $DailyDll,
+    [string] $CopiedCheckpoint
 )
 # Use a fresh Windows PowerShell 5.1 process per mod combination.
 $ErrorActionPreference = 'Stop'
@@ -30,4 +31,4 @@ $refs = @("$managed\Assembly-CSharp.dll","$managed\UnityEngine.CoreModule.dll","
 Add-Type -Path "$PSScriptRoot\Probe.cs" -ReferencedAssemblies $refs
 if ($CheatDll) { $CheatDll = (Resolve-Path -LiteralPath $CheatDll).Path }
 if ($DailyDll) { $DailyDll = (Resolve-Path -LiteralPath $DailyDll).Path }
-[CommissionProbe]::Run($plugin,$CheatDll,$DailyDll)
+[CommissionProbe]::Run($plugin,$CheatDll,$DailyDll,$CopiedCheckpoint)

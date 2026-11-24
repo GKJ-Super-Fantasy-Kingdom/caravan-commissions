@@ -1,6 +1,6 @@
 {
   "name": "CaravanCommissions",
-  "version_number": "0.1.0",
+  "version_number": "0.1.3",
   "website_url": "https://github.com/GKJ-Super-Fantasy-Kingdom/caravan-commissions",
   "description": "Take an item today or pay materials to choose a kingdom's item pool at a later caravan. Compare offers with gamepad, keyboard or mouse.",
   "dependencies": [

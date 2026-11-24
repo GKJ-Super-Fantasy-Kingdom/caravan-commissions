@@ -37,6 +37,8 @@ dotnet run --project tests/OrderChecks -c Release
 python package.py
 ```
 
-The local import ZIP is written to `dist/CaravanCommissions-0.1.0.zip`. The order checks exercise the transaction and checkpoint model offline. Local testing on game 0.8.067 covered a fresh process, the tavern checkpoint, and delivery on the next Daily Caravan visit. The comparison desk was exercised at 1× and 1.5× with keyboard, mouse, and a virtual gamepad. Physical controller operation and remapped bindings still need a playtest.
+The local import ZIP is written to `dist/CaravanCommissions-<version>.zip`. The order checks exercise the transaction and checkpoint model offline. Local testing on game 0.8.067 covered a fresh process, the tavern checkpoint, and delivery on the next Daily Caravan visit. The comparison desk was exercised at 1× and 1.5× with keyboard, mouse, and a virtual gamepad. Physical controller operation and remapped bindings still need a playtest.
 
 For an offline comparison using installed managed assemblies, run `tests/InstalledChecks/run.ps1` in Windows PowerShell 5.1. Supply `-GameDir` and `-CoreDir` (the profile’s BepInEx core folder). Optionally pass `-DailyDll` and/or `-CheatDll` to use their real dispatch and production-yield methods. Run each combination in a fresh process. The probe uses a fixture item pack and grant recorder. It reads its fixtures through the mod’s checkpoint deserializer. It does not launch the game.
+
+The same probe checks the [Visitor Calendar query](docs/visitor-calendar.md). To exercise its save hooks with a real checkpoint, pass `-CopiedCheckpoint` and the path to a disposable copy of a paid-order save from day 16. The probe reads the copy without modifying it.

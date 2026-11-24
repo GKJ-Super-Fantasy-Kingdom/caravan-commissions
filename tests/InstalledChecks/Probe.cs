@@ -89,6 +89,19 @@ public static class CommissionProbe
         inventory.GetMethod("Prefix", All).Invoke(null, args);
         Check((bool)args[3], "merchant reuse outside a caravan releases ownership");
     }
+    static void ImmediateTerms(Assembly asm)
+    {
+        var panel = asm.GetType("CaravanCommissions.CommissionPanel");
+        const string title = "Shield";
+        const string description = "Merchant Charter: +1 coin (3 coins required)\nBlocks a hit.";
+        Check((string)Call(panel, null, "OfferText", title, description, null) == "<b>Shield</b>\n" + description,
+            "immediate preview preserves a companion's visible card terms");
+        RaceManager.Instance = Blank<RaceManager>();
+        var costs = new[] { new ResourceAmount(ResourceType.Coins, 2), new ResourceAmount(ResourceType.Wood, 9) };
+        Check((string)Call(panel, null, "OfferText", title, description, costs) == "<b>Shield (2 Coins)</b>\n" + description,
+            "preview shows the native buy-button price alongside the companion surcharge");
+    }
+
     static bool ReplacePool(ref List<string> __result)
     {
         __result = replacementPool;
@@ -104,6 +117,13 @@ public static class CommissionProbe
         if (!value) throw new InvalidOperationException(message);
     }
     static T Blank<T>() { return (T)FormatterServices.GetUninitializedObject(typeof(T)); }
+    // These managed fixtures only call field getters. Mark their Unity wrappers alive for the scene checks.
+    static T SceneObject<T>() where T : UnityEngine.Object
+    {
+        var value = Blank<T>();
+        typeof(UnityEngine.Object).GetField("m_CachedPtr", All).SetValue(value, new IntPtr(1));
+        return value;
+    }
     static object Reload(object book)
     {
         var hooks = Book.Assembly.GetType("CaravanCommissions.SaveHooks", true);
@@ -126,7 +146,99 @@ public static class CommissionProbe
         finally { reading.SetValue(null, previous); }
     }
 
-    public static void Run(string plugin, string cheatDll, string dailyDll)
+    private delegate bool ReadDelivery(out int day);
+
+    static void Calendar(Assembly asm, string copiedCheckpoint, Assembly daily)
+    {
+        var api = asm.GetType("CaravanCommissions.CommissionCalendar", true);
+        var read = (ReadDelivery)Delegate.CreateDelegate(typeof(ReadDelivery), api.GetMethod("TryGetPendingDelivery"));
+        var plugin = asm.GetType("CaravanCommissions.Plugin", true);
+        GameDataManager.Instance = SceneObject<GameDataManager>();
+        GameManager.Instance = SceneObject<GameManager>();
+        DaytimeManager.Instance = SceneObject<DaytimeManager>();
+        OverlayManager.Instance = SceneObject<OverlayManager>();
+        typeof(GameManager).GetField("m_IsGameRunning", All).SetValue(GameManager.Instance, true);
+        var clock = typeof(DaytimeManager).GetField("m_CurrentDay", All);
+        var overlay = OverlayManager.Instance;
+        var screen = Blank<UIOverlayMerchant>();
+        var field = plugin.GetField("Book", All);
+        Call(plugin, null, "Reset", (object)null);
+        int day;
+        Check(!read(out day) && day == -1, "no calendar entry in a fresh run");
+        var book = field.GetValue(null);
+        var beforePayment = Reload(book);
+        int visit = (int)Call(Book, book, "StartVisit", 16, true);
+        Call(Book, book, "Place", 16, visit, "Demon", new[] { "Burn", "Hammer", "Rage" }, new Func<bool>(() => true));
+        Check(read(out day) && day == -1, "paid order has no booked day");
+        if (!String.IsNullOrEmpty(copiedCheckpoint))
+        {
+            // Restore the embedded order through the same deserializer, matching run/hash and load hooks as the game.
+            var hooks = asm.GetType("CaravanCommissions.SaveHooks", true);
+            var json = File.ReadAllText(copiedCheckpoint);
+            var header = Json.Deserialize<Dictionary<string, object>>(json);
+            var data = new GameData { runID = (string)header["runID"], hash = (string)header["hash"] };
+            var reading = hooks.GetField("reading", All);
+            var context = Activator.CreateInstance(reading.FieldType, true);
+            reading.FieldType.GetField("Path", All).SetValue(context, "copied_game");
+            reading.SetValue(null, context);
+            try
+            {
+                Call(hooks.GetNestedType("ReadJson", BindingFlags.NonPublic), null, "Postfix", "copied_game", json);
+                Call(hooks, null, "Attach", data);
+                Call(hooks.GetNestedType("Restore", BindingFlags.NonPublic), null, "Prefix", data);
+            }
+            finally { reading.SetValue(null, null); }
+            book = field.GetValue(null);
+        }
+        else Call(plugin, null, "Reset", book = Reload(book));
+        Check(read(out day) && day == -1, "restore does not announce the previously spent dawn");
+        var originalScene = GameDataManager.Instance;
+        GameDataManager.Instance = SceneObject<GameDataManager>();
+        Check(!read(out day) && day == -1, "different scene cannot see the previous run's order");
+        GameDataManager.Instance = originalScene;
+        typeof(GameManager).GetField("m_Unloading", All).SetValue(GameManager.Instance, true);
+        Check(!read(out day) && day == -1, "unloading hides the order");
+        typeof(GameManager).GetField("m_Unloading", All).SetValue(GameManager.Instance, false);
+
+        var guest = Blank<GuestCaravan>();
+        int next = daily == null ? 23 : 17;
+        clock.SetValue(DaytimeManager.Instance, next);
+        if (daily != null) Arrive(Activator.CreateInstance(Book, true), next, daily);
+        Check(read(out day) && day == -1, "eligibility alone never dates the order");
+        // Model the native overlay and ownership binding without instantiating Unity card prefabs.
+        var arrival = Call(plugin, null, "Arrive", guest, next);
+        var screens = plugin.GetField("screens", All).GetValue(null);
+        Call(screens.GetType(), screens, "Add", screen, arrival);
+        typeof(OverlayManager).GetField("m_CurrentlyOpen", All).SetValue(overlay, screen);
+        typeof(OverlayManager).GetField("m_IsOpen", All).SetValue(overlay, true);
+        var before = Json.Serialize(book);
+        Check(read(out day) && day == next && read(out day) && day == next && before == Json.Serialize(book),
+            "polling a bound picker reports today and leaves the checkpoint unchanged");
+        typeof(OverlayManager).GetField("m_CurrentlyOpen", All).SetValue(overlay, null);
+        typeof(OverlayManager).GetField("m_Backup", All).SetValue(overlay, screen);
+        typeof(OverlayManager).GetField("m_MinimizedOverlay", All).SetValue(overlay, true);
+        Check(read(out day) && day == next, "minimized delivery stays dated");
+        clock.SetValue(DaytimeManager.Instance, next + 1);
+        Check(read(out day) && day == -1, "stale picker cannot leak yesterday's date");
+        clock.SetValue(DaytimeManager.Instance, next);
+        Call(Book, book, "Finish", next, 1, false);
+        Check(read(out day) && day == -1, "deferred delivery returns to Next Caravan");
+        Call(plugin, null, "Reset", book = Reload(book));
+        Check(read(out day) && day == -1, "deferred checkpoint stays pending");
+        visit = (int)Call(Book, book, "StartVisit", next, false);
+        var ids = (string[])Book.GetField("items").GetValue(book);
+        Check(!(bool)Call(Book, book, "Claim", next, visit, ids, ids[0], new Func<string,string>(id => id),
+            new Func<string,bool>(id => false)) && read(out day), "failed grant keeps the entry");
+        Check((bool)Call(Book, book, "Claim", next, visit, ids, ids[0], new Func<string,string>(id => id),
+            new Func<string,bool>(id => true)), "redeem at a distinct visit");
+        Check(!read(out day) && day == -1, "redeemed order disappears");
+        Call(plugin, null, "Reset", Reload(book));
+        Check(!read(out day) && day == -1, "redeemed checkpoint stays clear");
+        Call(plugin, null, "Reset", beforePayment);
+        Check(!read(out day) && day == -1, "restoring before payment clears the entry");
+    }
+
+    public static void Run(string plugin, string cheatDll, string dailyDll, string copiedCheckpoint)
     {
         var asm = Assembly.LoadFrom(plugin);
         Book = asm.GetType("CaravanCommissions.OrderBook", true);
@@ -162,12 +274,14 @@ public static class CommissionProbe
                 Scenario(baseYield, daily, removed);
             GrantFaults(asm);
             WrappedPicker(asm);
+            ImmediateTerms(asm);
+            Calendar(asm, copiedCheckpoint, daily);
         }
         finally { fixture.UnpatchSelf(); }
         Console.WriteLine("PASS baseline production 2 -> " + baseYield + "; Daily Caravan " +
             (daily == null ? "off" : "on (real eligibility/dispatch methods)") +
             "; reorder, one removed, all removed; exact debit and rollback after throw; " +
-            "suppressed and throw-after-spawn receipts; wrapped empty and short redraws; merchant reuse.");
+            "suppressed and throw-after-spawn receipts; wrapped empty and short redraws; merchant reuse; native price and card terms; calendar query.");
     }
 
     static void Arrive(object book, int day, Assembly daily)
@@ -179,7 +293,12 @@ public static class CommissionProbe
             var arrivalType = daily.GetType("DailyCaravan.Arrival", true);
             var arrival = Activator.CreateInstance(arrivalType, true);
             var visit = Activator.CreateInstance(visitType, true);
-            Call(arrivalType, arrival, "Request", visit, null);
+            var request = arrivalType.GetMethod("Request", All);
+            // Current Daily Caravan accepts an optional origin after the kingdom. Older builds take two arguments.
+            var args = request.GetParameters().Select(p => (object)Type.Missing).ToArray();
+            args[0] = visit;
+            args[1] = null;
+            request.Invoke(arrival, args);
             Check(Call(arrivalType, arrival, "Take", visit, true).ToString() == "Wait", "occupied slot");
             Check(Call(arrivalType, arrival, "Take", visit, false).ToString() == "StartVisit", "first dispatch");
             Check(Call(arrivalType, arrival, "Take", visit, false).ToString() == "Wait", "repeat dispatch");

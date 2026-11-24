@@ -20,6 +20,7 @@ files = {
     "manifest.json": listing / "manifest.json",
     "README.md": root / "README.md",
     "CONTRIBUTING.md": root / "CONTRIBUTING.md",
+    "docs/visitor-calendar.md": root / "docs" / "visitor-calendar.md",
     "CHANGELOG.md": root / "CHANGELOG.md",
     "icon.png": listing / "icon.png",
     "plugins/CaravanCommissions.dll": root / "bin" / "Release" / framework / "CaravanCommissions.dll",
