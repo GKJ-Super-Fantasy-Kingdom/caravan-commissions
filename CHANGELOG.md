@@ -1,3 +1,7 @@
+# 0.1.4
+
+Clarify the mod’s description and compatibility for players.
+
 # 0.1.3
 
 - Browse kingdoms with the arrows beside the future offer. Choose today’s cards or review the order directly below its card.

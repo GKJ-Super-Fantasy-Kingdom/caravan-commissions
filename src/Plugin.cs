@@ -12,7 +12,7 @@ using UnityEngine;
 
 namespace CaravanCommissions
 {
-    [BepInPlugin("gkj.sfk.caravancommissions", "Caravan Commissions", "0.1.3")]
+    [BepInPlugin("gkj.sfk.caravancommissions", "Caravan Commissions", "0.1.4")]
     [BepInDependency("sfk.dailycaravan", BepInDependency.DependencyFlags.SoftDependency)]
     internal sealed class Plugin : BaseUnityPlugin
     {

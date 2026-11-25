@@ -19,8 +19,6 @@ Take an item from today’s caravan, or spend three materials to reserve a choic
 
 ## Screenshots
 
-Captured in Super Fantasy Kingdom 0.8.068 with Caravan Commissions 0.1.3 and a virtual gamepad.
-
 ![Offer desk with today's items on the left, arrows beside the Demon pool on the right, and Review Order focused](https://raw.githubusercontent.com/GKJ-Super-Fantasy-Kingdom/caravan-commissions/main/docs/screenshots/0.1.3/offers.png)
 
 *At 1×, use the arrows beside Demon to change the future offer. Today's Items returns you to the caravan's first card.*
@@ -35,12 +33,12 @@ Captured in Super Fantasy Kingdom 0.8.068 with Caravan Commissions 0.1.3 and a v
 
 ## Compatibility
 
-- On the vanilla schedule, the next item caravan can be a scheduled visit or a reputation visit. With GKJ’s [Daily Caravan](https://thunderstore.io/c/super-fantasy-kingdom/p/GKJ/DailyCaravan/), your delivery is ready at the next actual item visit. Reopening the same visit keeps your original decision.
-- With GKJ’s [Kingdom Charters](https://thunderstore.io/c/super-fantasy-kingdom/p/GKJ/KingdomCharters/), the Merchant Charter charges its extra coin for an immediate pick. Collecting a prepaid commission is free of that fee.
-- With ILM’s [CheatMenu](https://thunderstore.io/c/super-fantasy-kingdom/p/ILM/CheatMenu/) 1.0.3, an offline check at 3× production yield confirmed that placing an order deducts the displayed three materials once.
-- With GKJ’s [Visitor Calendar](https://thunderstore.io/c/super-fantasy-kingdom/p/GKJ/VisitorCalendar/) 0.1.1 or later, **Next Caravan** marks an undated order. An open or minimized eligible picker shows **Commission Delivery** on that day. Collecting clears the entry.
-- Reloading a checkpoint restores both your order and your material stock to that point in the run.
-- Modded items need stable IDs that the game can look up after a reload. If a promised item disappears, take a remaining card, defer delivery, or use **Exchange Order** to reserve another complete pool for free. Mods that replace the item picker or equip rewards directly need a separate integration.
+- Works with Super Fantasy Kingdom **0.8.068** and the other [GKJ mods](https://thunderstore.io/c/super-fantasy-kingdom/p/GKJ/).
+- With [Daily Caravan](https://thunderstore.io/c/super-fantasy-kingdom/p/GKJ/DailyCaravan/), delivery follows the next actual item visit. Reopening today’s caravan preserves your decision.
+- [Visitor Calendar](https://thunderstore.io/c/super-fantasy-kingdom/p/GKJ/VisitorCalendar/) can show **Commission Forecast**, **Commission Delivery**, or **Next Caravan** when the date is unknown. Collecting the delivery clears the entry.
+- With [Kingdom Charters](https://thunderstore.io/c/super-fantasy-kingdom/p/GKJ/KingdomCharters/), the Merchant Charter fee applies to immediate picks. A prepaid commission has no additional fee when you collect it.
+- If a promised item is removed by another mod, take a remaining choice, defer, or use **Exchange Order** to reserve another complete pool without paying again. Mods that replace the item picker or issue rewards through their own UI may need separate support.
+- These community mods can share the same profile. [Achievement Enabler](https://thunderstore.io/c/super-fantasy-kingdom/p/ownlyme/AchievementEnabler/), [Bakery Uses Wheat](https://thunderstore.io/c/super-fantasy-kingdom/p/ownlyme/BakeryUsesWheat/), [More Relics](https://thunderstore.io/c/super-fantasy-kingdom/p/ownlyme/MoreRelics/), [Right Click Skip](https://thunderstore.io/c/super-fantasy-kingdom/p/ownlyme/RightClickSkip/), and [Tavern Food Priorities](https://thunderstore.io/c/super-fantasy-kingdom/p/ownlyme/TavernFoodPriorities/).
 
 ## Installation
 
