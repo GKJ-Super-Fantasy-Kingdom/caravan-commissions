@@ -47,3 +47,7 @@ Captured in Super Fantasy Kingdom 0.8.068 with Caravan Commissions 0.1.3 and a v
 1. In Thunderstore Mod Manager or [r2modman](https://thunderstore.io/c/super-fantasy-kingdom/p/ebkr/r2modman/), select **Super Fantasy Kingdom** and your profile.
 2. Install **CaravanCommissions** by **GKJ** along with its listed dependencies, [BepInExPack](https://thunderstore.io/c/super-fantasy-kingdom/p/BepInEx/BepInExPack/) and [HideManagerGameObject_Config](https://thunderstore.io/c/super-fantasy-kingdom/p/BepInEx/HideManagerGameObject_Config/). For a local ZIP, install the dependencies and use **Import local mod**.
 3. Start the game modded. **Compare Commissions** appears when an item caravan opens.
+
+## Support
+
+[Support GKJ Games on Ko-fi](https://ko-fi.com/gkj_games)
