@@ -12,7 +12,7 @@ using UnityEngine;
 
 namespace CaravanCommissions
 {
-    [BepInPlugin("gkj.sfk.caravancommissions", "Caravan Commissions", "0.1.4")]
+    [BepInPlugin("gkj.sfk.caravancommissions", "Caravan Commissions", "0.1.5")]
     [BepInDependency("sfk.dailycaravan", BepInDependency.DependencyFlags.SoftDependency)]
     internal sealed class Plugin : BaseUnityPlugin
     {
@@ -66,7 +66,7 @@ namespace CaravanCommissions
             }
             harmony = new Harmony("gkj.sfk.caravancommissions");
             harmony.PatchAll(typeof(Plugin).Assembly);
-            Logger.LogInfo("Caravan Commissions 0.1.3 loaded");
+            Logger.LogInfo($"Caravan Commissions {Info.Metadata.Version} loaded");
         }
 
         private void OnDestroy()

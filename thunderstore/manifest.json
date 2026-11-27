@@ -1,6 +1,6 @@
 {
   "name": "CaravanCommissions",
-  "version_number": "0.1.4",
+  "version_number": "0.1.5",
   "website_url": "https://github.com/GKJ-Super-Fantasy-Kingdom/caravan-commissions",
   "description": "Take a caravan item today or pay materials to reserve a choice of three items from another kingdom for a later visit.",
   "dependencies": [

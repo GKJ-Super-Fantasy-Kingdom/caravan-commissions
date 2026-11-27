@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>netstandard2.1</TargetFramework>
-    <Version>0.1.4</Version>
+    <Version>0.1.5</Version>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     <GameDir Condition="'$(GameDir)' == ''">D:\SteamLibrary\steamapps\common\Super Fantasy Kingdom</GameDir>
     <ProfileDir Condition="'$(ProfileDir)' == ''">$(APPDATA)\Thunderstore Mod Manager\DataFolder\SuperFantasyKingdom\profiles\Daybook Dev</ProfileDir>
@@ -9,9 +9,11 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="src/*.cs" />
+    <EmbeddedResource Include="src/Art/*.png" LogicalName="CaravanCommissions.%(Filename)%(Extension)" />
     <Reference Include="BepInEx" HintPath="$(ProfileDir)\BepInEx\core\BepInEx.dll" Private="false" />
     <Reference Include="0Harmony" HintPath="$(ProfileDir)\BepInEx\core\0Harmony.dll" Private="false" />
     <Reference Include="UnityEngine" HintPath="$(ManagedDir)\UnityEngine.dll" Private="false" />
+    <Reference Include="UnityEngine.ImageConversionModule" HintPath="$(ManagedDir)\UnityEngine.ImageConversionModule.dll" Private="false" />
     <Reference Include="UnityEngine.CoreModule" HintPath="$(ManagedDir)\UnityEngine.CoreModule.dll" Private="false" />
     <Reference Include="UnityEngine.UI" HintPath="$(ManagedDir)\UnityEngine.UI.dll" Private="false" />
     <Reference Include="UnityEngine.UIModule" HintPath="$(ManagedDir)\UnityEngine.UIModule.dll" Private="false" />
@@ -20,6 +22,7 @@
     <Reference Include="UnityEngine.TextCoreTextEngineModule" HintPath="$(ManagedDir)\UnityEngine.TextCoreTextEngineModule.dll" Private="false" />
     <Reference Include="UnityEngine.TextCoreFontEngineModule" HintPath="$(ManagedDir)\UnityEngine.TextCoreFontEngineModule.dll" Private="false" />
     <Reference Include="Unity.InputSystem" HintPath="$(ManagedDir)\Unity.InputSystem.dll" Private="false" />
+    <Reference Include="Unity.Localization" HintPath="$(ManagedDir)\Unity.Localization.dll" Private="false" />
     <Reference Include="Unity.TextMeshPro" HintPath="$(ManagedDir)\Unity.TextMeshPro.dll" Private="false" />
     <Reference Include="Newtonsoft.Json" HintPath="$(ManagedDir)\Newtonsoft.Json.dll" Private="false" />
     <Reference Include="Assembly-CSharp" HintPath="$(ManagedDir)\Assembly-CSharp.dll" Private="false" />

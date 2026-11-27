@@ -1,3 +1,11 @@
+# 0.1.5
+
+- Compare today's caravan stock with another kingdom's pool on two illustrated cards. Each kingdom has its own caravan art, crest and nameplate.
+- Page through future pools with the on-card arrows, Q/E, or controller shoulder buttons. The comparison cards are larger at 1×.
+- Review the three promised items, price, and spendable stock before using the wide Pay and Commission button. Hover, focus, press, and disabled states use the game's button treatment.
+- See the remaining prepaid items when reviewing a damaged order. Orders with no remaining items or replacement pool explain the option to close without a refund.
+- Fixed native checkpoint compatibility for game 0.8.070. A paid order survives fresh Continue and grants one promised item without a second charge.
+
 # 0.1.4
 
 Clarify the mod’s description and compatibility for players.

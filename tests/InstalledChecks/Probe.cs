@@ -102,6 +102,67 @@ public static class CommissionProbe
             "preview shows the native buy-button price alongside the companion surcharge");
     }
 
+    static void KingdomChoices()
+    {
+        var guest = Blank<GuestCaravan>();
+        var guestRace = typeof(GuestCaravan).GetField("m_Kingdom", All);
+        guestRace.SetValue(guest, Races.Demon);
+        var catalog = new Dictionary<string, Item>();
+        foreach (var race in new[] { Races.Human, Races.Undead, Races.Demon })
+        {
+            var ids = Enumerable.Range(1, 3).Select(index => race + "." + index).ToList();
+            typeof(GuestCaravan).GetField(race.ToString().ToLowerInvariant() + "Items", All).SetValue(guest, ids);
+            foreach (var id in ids)
+            {
+                var item = Blank<Item>();
+                typeof(Item).GetField("identifier", All).SetValue(item, id);
+                catalog.Add(id, item);
+            }
+        }
+
+        var addressables = Blank<AddressablesManager>();
+        typeof(AddressablesManager).GetField("m_Items", All).SetValue(addressables, catalog);
+        AddressablesManager.Instance = addressables;
+        RaceManager.Instance = Blank<RaceManager>();
+        Helper.Instance = Blank<Helper>();
+        var raceField = typeof(RaceManager).GetField("race", All);
+        var fixture = new Harmony("offline.commissions.kingdomtitles");
+        try
+        {
+            // The original title method uses Unity Localization. The pool getter runs unpatched.
+            fixture.Patch(typeof(Helper).GetMethod("GetKingdomTitle", All),
+                prefix: new HarmonyMethod(typeof(CommissionProbe).GetMethod("KingdomTitle", All)));
+            foreach (var race in new[] { Races.Human, Races.Undead })
+            {
+                raceField.SetValue(RaceManager.Instance, race);
+                var pools = ((System.Collections.IEnumerable)Call(Pool, null, "Eligible", guest)).Cast<object>().ToArray();
+                var kingdoms = pools.Select(pool => (Races)Pool.GetField("Kingdom", All).GetValue(pool)).ToArray();
+                Check(kingdoms.Length == 2 && kingdoms.Contains(Races.Demon) && !kingdoms.Contains(race),
+                    race + " has two other kingdoms' complete pools and no own pool");
+                foreach (var pool in pools)
+                {
+                    var kingdom = (Races)Pool.GetField("Kingdom", All).GetValue(pool);
+                    var ids = (string[])Pool.GetField("Ids", All).GetValue(pool);
+                    var items = (Item[])Pool.GetField("Items", All).GetValue(pool);
+                    Check(ids.All(id => id.StartsWith(kingdom + ".", StringComparison.Ordinal)) &&
+                        ids.SequenceEqual(items.Select(item => item.GetIdentifier())) &&
+                        Helper.Instance.GetKingdomResource(kingdom) != ResourceType.None,
+                        race + " preview has the right item identities and native crest key for " + kingdom);
+                }
+                Check((Races)Call(Pool, null, "VisitingKingdom", guest) == Races.Demon,
+                    "browsing restores the guest's own kingdom");
+                Console.WriteLine("PASS " + race + " eligible pools: " + String.Join(", ", kingdoms));
+            }
+        }
+        finally { fixture.UnpatchSelf(); }
+    }
+
+    static bool KingdomTitle(Races r, ref string __result)
+    {
+        __result = r.ToString();
+        return false;
+    }
+
     static bool ReplacePool(ref List<string> __result)
     {
         __result = replacementPool;
@@ -278,6 +339,7 @@ public static class CommissionProbe
             Calendar(asm, copiedCheckpoint, daily);
         }
         finally { fixture.UnpatchSelf(); }
+        KingdomChoices();
         Console.WriteLine("PASS baseline production 2 -> " + baseYield + "; Daily Caravan " +
             (daily == null ? "off" : "on (real eligibility/dispatch methods)") +
             "; reorder, one removed, all removed; exact debit and rollback after throw; " +

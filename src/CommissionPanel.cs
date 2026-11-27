@@ -8,7 +8,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
-using UnityEngine.InputSystem.UI;
+using UnityEngine.Localization.Components;
 using UnityEngine.UI;
 
 namespace CaravanCommissions
@@ -36,18 +36,23 @@ namespace CaravanCommissions
         private CanvasGroup native;
         private bool oldInteractable, oldRaycasts, addedGroup;
         private readonly List<(CanvasGroup group, float alpha, bool added)> hidden = new List<(CanvasGroup, float, bool)>();
-        private Button nativeButton, acceptTemplate;
-        private Sprite cardFrame, cardBanner;
-        private static readonly Vector2 DeskSize = new Vector2(1280, 720);
+        private Button nativeButton, backTemplate;
+        private Transform arrowTemplate;
+        private const float CardWidth = 280f, CardHeight = 420f, CardGap = 24f;
+        private static readonly Vector2 DeskSize = new Vector2(664, 630);
+        private static readonly Vector2 FooterSize = new Vector2(230f, 36f);
+        private const float FooterEdgeScale = 3f;
         internal static int LastBackFrame = -1;
         private RectTransform page;
         private int index, enteredFrame;
         private bool reviewing;
-        private TMP_Text backPrompt;
-        private Image backIcon;
-        private string activeScheme;
+        private GameObject panelSelection;
+        private RectTransform poolHints;
+        private PoolShortcutHint previousHint, nextHint;
         private static readonly Color Ink = new Color(.075f, .105f, .13f);
-        private static readonly Color Paper = new Color32(229, 204, 161, 255);
+        private static readonly Color Parchment = new Color32(229, 204, 161, 255);
+        private static readonly Color Cream = new Color32(255, 245, 220, 255);
+        private enum RecoveryArt { None, PaidItems, CloseOrder }
 
         internal static void Open(UIOverlayMerchant merchant, Plugin.Visit visit)
         {
@@ -81,23 +86,21 @@ namespace CaravanCommissions
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
             canvas.sortingOrder = short.MaxValue - 1;
             nativeButton = screen.transform.Find("Panel/Buttons/Minimize/Button")?.GetComponent<Button>();
-            acceptTemplate = Resources.Load<GameObject>("UI/OverlayMessage")?.transform
-                .Find("Buttons/BuyButton")?.GetComponent<Button>();
-            var cardTemplate = cards.FirstOrDefault()?.gameObject ?? DeliveryCards.ItemCardPrefab(screen);
-            var art = cardTemplate == null ? Array.Empty<Image>() : cardTemplate.GetComponentsInChildren<Image>(true);
-            cardFrame = art.FirstOrDefault(image => image.name == "Card" && image.sprite != null)?.sprite;
-            cardBanner = art.FirstOrDefault(image => image.name == "Banner" && image.sprite != null)?.sprite;
+            var footer = Resources.Load<GameObject>("UI/OverlayMessage")?.transform.Find("Buttons");
+            // Unit, relic, and caravan selection use this native cancel button.
+            backTemplate = screen.transform.Find("Panel/Buttons/Cancel/Button")?.GetComponent<Button>() ?? nativeButton;
+            sample = footer?.parent.Find("Message")?.GetComponent<TMP_Text>() ?? sample;
+            arrowTemplate = Resources.Load<GameObject>("UI/OverlayElementWorker")?.transform.Find("Amount");
             // The game's backdrop sits below its resource HUD. Keep that layer and
             // block clicks on our overlay without painting over the HUD a second time.
             Box("Input shield", transform, 0, 0, 1, 1).gameObject.AddComponent<Image>().color = Color.clear;
             foreach (Transform child in merchant.transform)
             {
-                if (child.name == "Image") continue;
                 var group = child.GetComponent<CanvasGroup>();
                 bool added = group == null;
                 if (added) group = child.gameObject.AddComponent<CanvasGroup>();
                 hidden.Add((group, group.alpha, added));
-                group.alpha = 0;
+                group.alpha = child.name == "Image" ? group.alpha * .78f : 0;
             }
             native = merchant.GetComponent<CanvasGroup>();
             addedGroup = native == null;
@@ -105,6 +108,7 @@ namespace CaravanCommissions
             oldInteractable = native.interactable;
             oldRaycasts = native.blocksRaycasts;
             native.interactable = native.blocksRaycasts = false;
+            CreatePoolHints();
             Render();
         }
 
@@ -114,12 +118,17 @@ namespace CaravanCommissions
         {
             if (!OwnsCurrentScreen || !visit.Available) { Dismiss(); return; }
             FitDesk();
+            var pad = GamepadManager.Instance;
             var selected = EventSystem.current?.currentSelectedGameObject;
-            if (selected != null && selected.transform.IsChildOf(transform) &&
-                GamepadManager.Instance.GetGameObjectToSelect() != selected)
-                GamepadManager.Instance.SetGameObjectToSelect(selected, true);
-            string scheme = GamepadManager.Instance.GetCurrentControlScheme();
-            if (activeScheme != scheme) RefreshPrompts(scheme);
+            var scheme = pad.GetCurrentControlScheme();
+            if (selected != null && selected.transform.IsChildOf(page))
+            {
+                panelSelection = selected;
+                if (pad.GetGameObjectToSelect() != selected) pad.SetGameObjectToSelect(selected, true);
+            }
+            else if (scheme == "Gamepad" && panelSelection != null && PauseMenuManger.Instance?.InMenu() != true)
+                Focus(panelSelection);
+            UpdatePoolShortcuts(pad, selected);
         }
 
         private static RectTransform Box(string name, Transform parent, float left, float bottom, float right, float top)
@@ -136,13 +145,63 @@ namespace CaravanCommissions
         {
             // Follow the two game UI sizes, keeping the full desk inside smaller displays.
             var bounds = ((RectTransform)transform).rect.size;
-            float fit = Mathf.Min(bounds.x / DeskSize.x, bounds.y / DeskSize.y);
             float uiScale = SettingsManager.Instance.GetUIScaling();
             float top = Mathf.Min(88f * uiScale, bounds.y * .18f);
             float bottom = Mathf.Min(56f, bounds.y * .09f);
             float maxHeightScale = (bounds.y - top - bottom) / DeskSize.y;
-            page.localScale = Vector3.one * Mathf.Min(fit * .70f * uiScale, maxHeightScale, fit * .96f);
+            float maxWidthScale = bounds.x * .96f / DeskSize.x;
+            float readableScale = Mathf.Approximately(uiScale, 1f) ? 1.2f : uiScale;
+            page.localScale = Vector3.one * Mathf.Min(readableScale, maxHeightScale, maxWidthScale);
             page.anchoredPosition = new Vector2(0, (bottom - top) * .5f);
+            poolHints.localScale = Vector3.one * Mathf.Min(uiScale, 1.2f, bounds.x * .94f / poolHints.rect.width);
+        }
+
+        private void CreatePoolHints()
+        {
+            poolHints = Box("Pool shortcuts", transform, 1f, 0f, 1f, 0f);
+            poolHints.pivot = new Vector2(1f, 0f);
+            // Box initially sets both offsets to zero. Size and place after setting the pivot.
+            poolHints.sizeDelta = new Vector2(366f, 42f);
+            poolHints.anchoredPosition = new Vector2(-16f, 14f);
+            Surface(poolHints, null, new Color32(14, 17, 24, 226)).raycastTarget = false;
+            previousHint = CreatePoolHint("Previous Pool", .014f, .54f);
+            nextHint = CreatePoolHint("Next Pool", .54f, .986f);
+            poolHints.gameObject.SetActive(false);
+        }
+
+        private PoolShortcutHint CreatePoolHint(string caption, float left, float right)
+        {
+            var row = Box(caption, poolHints, left, .04f, right, .96f);
+            var captionLabel = Label("Action", row, caption, .355f, 0f, 1f, 1f, 22);
+            captionLabel.color = Cream;
+            var keyLabel = Label("Key name", row, "", .012f, 0f, .32f, 1f, 21, TextAlignmentOptions.Center);
+            keyLabel.color = Cream;
+            var glyph = Box("Game glyph", row, .04f, .06f, .31f, .94f).gameObject.AddComponent<Image>();
+            glyph.raycastTarget = false;
+            glyph.preserveAspect = true;
+            return new PoolShortcutHint(row, keyLabel, glyph);
+        }
+
+        private void UpdatePoolShortcuts(GamepadManager pad, GameObject selected)
+        {
+            if (reviewing || pools.Count < 2 || PauseMenuManger.Instance?.InMenu() == true)
+            {
+                poolHints.gameObject.SetActive(false);
+                return;
+            }
+
+            var player = pad.GetPlayerInput();
+            var previous = player?.actions?.FindAction("Overlay/Left");
+            var next = player?.actions?.FindAction("Overlay/Right");
+            bool hasPrevious = previousHint.Refresh(previous, player, pad);
+            bool hasNext = nextHint.Refresh(next, player, pad);
+            poolHints.gameObject.SetActive(hasPrevious || hasNext);
+
+            bool left = hasPrevious && previous.WasPerformedThisFrame();
+            bool right = hasNext && next.WasPerformedThisFrame();
+            if (left == right || Time.frameCount == enteredFrame) return;
+            string focus = selected != null && selected.transform.IsChildOf(page) ? selected.name : null;
+            Cycle(left ? -1 : 1, focus);
         }
 
         private static Image Surface(RectTransform rect, Sprite sprite, Color color)
@@ -158,7 +217,12 @@ namespace CaravanCommissions
             float right, float top, int maxSize, TextAlignmentOptions alignment = TextAlignmentOptions.Left)
         {
             var label = Box(name, parent, left, bottom, right, top).gameObject.AddComponent<TextMeshProUGUI>();
-            if (sample != null) { label.font = sample.font; label.spriteAsset = sample.spriteAsset; }
+            if (sample != null)
+            {
+                label.font = sample.font;
+                label.fontSharedMaterial = sample.fontSharedMaterial;
+                label.spriteAsset = sample.spriteAsset;
+            }
             label.enableAutoSizing = true;
             label.fontSizeMin = 12;
             label.fontSizeMax = maxSize;
@@ -192,234 +256,384 @@ namespace CaravanCommissions
             return "<b>" + title + "</b>\n" + description;
         }
 
-        private RectTransform Column(string title, Item[] items, float left, float right, string[] nativeText = null, bool paging = false)
+        private RectTransform ChoiceCard(string action, string title, Races kingdom, Item[] items, float center,
+            out Button button, bool future, Action click = null, string[] nativeText = null, bool enabled = true,
+            RecoveryArt recoveryArt = RecoveryArt.None)
         {
-            var card = Box("Offer card", page, left, .27f, right, .785f);
-            var frame = Surface(card, cardFrame, cardFrame != null ? Color.white : Paper);
-            frame.pixelsPerUnitMultiplier = 4;
-            var banner = Box("Banner", card, .008f, .773f, .992f, .974f);
-            var ribbon = Surface(banner, cardBanner, cardBanner != null ? Color.white : (Color)new Color32(132, 57, 49, 255));
-            ribbon.pixelsPerUnitMultiplier = 4;
-            Label("Pool", banner, title, paging ? .16f : .05f, .14f, paging ? .84f : .95f, .9f, 30, TextAlignmentOptions.Center).color = Color.white;
+            float half = CardWidth / (2f * DeskSize.x);
+            const float foot = .10f;
+            var rect = Box(action, page, center - half, foot, center + half, foot + CardHeight / DeskSize.y);
+            var sprite = future ? ChoiceFrame.Silver : ChoiceFrame.Bronze;
+            var face = Surface(rect, sprite, sprite != null ? Color.white : (Color)new Color32(92, 54, 40, 255));
+            face.type = Image.Type.Simple;
+            face.raycastTarget = click != null;
+            button = click == null ? null : AddControl(rect, face, click, enabled, ChoiceFrame.Rim(future));
+
+            var art = Box("Kingdom illustration", rect, .0286f, .4762f, .9714f, .981f);
+            var kingdomArt = ChoiceFrame.ForKingdom(kingdom);
+            var landscape = Surface(art, kingdomArt.Scene, Color.white);
+            landscape.type = Image.Type.Simple;
+            landscape.raycastTarget = false;
+            var resource = Helper.Instance.GetKingdomResource(kingdom);
+            var crest = resource == ResourceType.None ? null : RaceManager.Instance.GetResourceIcon(resource);
+            var caravan = CaravanIllustration.Get(kingdom);
+            if (caravan != null)
+            {
+                var figure = Surface(Box("Kingdom caravan", art, .075f, .245f, .925f, .98f), caravan, Color.white);
+                figure.type = Image.Type.Simple;
+                figure.preserveAspect = true;
+                figure.raycastTarget = false;
+            }
+            if (crest != null)
+            {
+                var crestRect = caravan != null
+                    ? Box("Kingdom crest", art, .065f, .80f, .18f, .945f)
+                    : Box("Kingdom crest", art, .23f, .30f, .77f, .89f);
+                var emblem = Surface(crestRect, crest, Color.white);
+                emblem.type = Image.Type.Simple;
+                emblem.preserveAspect = true;
+                emblem.raycastTarget = false;
+            }
+            if (recoveryArt != RecoveryArt.None)
+                AddRecoveryIllustration(art, items, recoveryArt == RecoveryArt.CloseOrder);
+
+            var nameplate = Box("Kingdom header", art, .035f, .025f, .965f, .259f);
+            var plate = Surface(nameplate, kingdomArt.Plate, kingdomArt.Plate != null ? Color.white : (Color)new Color32(17, 15, 22, 217));
+            plate.type = Image.Type.Simple;
+            plate.raycastTarget = false;
+            var kingdomName = Label("Pool", nameplate, title, .21f, .11f, .79f, .9f, 26, TextAlignmentOptions.Center);
+            kingdomName.color = Cream;
+            kingdomName.fontStyle = FontStyles.Bold;
+            var caption = Label("Action", rect, action, .07f, .375f, .93f, .465f, 30, TextAlignmentOptions.Center);
+            caption.color = Cream;
+            caption.fontStyle = FontStyles.Bold;
+
+            float rowTop = .354f;
+            float rowHeight = future ? .087f : .106f;
             for (int i = 0; i < items.Length; i++)
             {
-                float top = .77f - i * .227f;
+                float top = rowTop - i * rowHeight;
                 var item = items[i];
                 if (item == null) continue;
-                var icon = Box("Item icon", card, .062f, top - .175f, .155f, top - .01f).gameObject.AddComponent<Image>();
-                icon.sprite = item.GetIcon();
+                var icon = Surface(Box("Item icon", rect, .056f, top - rowHeight * .85f, .149f, top - .004f), item.GetIcon(), Color.white);
+                icon.type = Image.Type.Simple;
                 icon.preserveAspect = true;
                 icon.raycastTarget = false;
-                Label("Item", card, nativeText == null ? OfferText(item.GetTitle(), item.GetDescription()) : nativeText[i],
-                    .18f, top - .215f, .944f, top, 23);
+                string text = nativeText == null ? OfferText(item.GetTitle(), item.GetDescription()) : nativeText[i];
+                // The item's native keyword colors are designed for light parchment.
+                text = text.Replace("<color=blue>", "<color=#A9D2FF>").Replace("<color=purple>", "<color=#E4BBFF>");
+                Label("Item", rect, text, .168f, top - rowHeight, .948f, top, 22).color = Cream;
             }
-            return banner;
+            string emptyText = recoveryArt == RecoveryArt.CloseOrder
+                ? "Close the order without an item or refund."
+                : recoveryArt == RecoveryArt.PaidItems && !items.Any(item => item != null)
+                    ? "No paid items remain available." : null;
+            if (emptyText != null)
+                Label("Recovery details", rect, emptyText, .09f, .16f, .91f, .35f, 22,
+                    TextAlignmentOptions.Center).color = Cream;
+            return nameplate;
         }
 
-        private void PriceLine(int owned, float left, float right)
+        private void AddRecoveryIllustration(RectTransform art, Item[] items, bool closeOrder)
         {
-            var row = Box("Commission price", page, left, .194f, right, .257f);
-            var group = row.gameObject.AddComponent<HorizontalLayoutGroup>();
-            group.childAlignment = TextAnchor.MiddleCenter;
-            group.childControlWidth = true;
-            group.childControlHeight = group.childForceExpandWidth = group.childForceExpandHeight = false;
-            group.spacing = 20;
+            var icons = items.Where(item => item != null).Select(item => item.GetIcon())
+                .Where(sprite => sprite != null).Take(2).ToArray();
+            if (icons.Length == 0)
+                icons = new[] { closeOrder ? RaceManager.Instance.GetResourceIcon(ResourceType.Banish) : ClosedChestSprite() };
 
-            void Text(string id, string value, Color color)
+            bool pair = icons.Length == 2;
+            float halfWidth = pair ? .14f : .175f;
+            float bottom = pair ? .43f : .38f;
+            float top = pair ? .78f : .82f;
+            var border = closeOrder ? new Color32(174, 100, 86, 255) : new Color32(195, 155, 105, 255);
+            var fill = closeOrder ? new Color32(54, 28, 37, 255) : new Color32(39, 32, 45, 255);
+            for (int i = 0; i < icons.Length; i++)
             {
-                var label = Label(id, row, value, 0, .5f, 0, .5f, 26, TextAlignmentOptions.Center);
-                label.rectTransform.sizeDelta = new Vector2(0, 43);
-                label.color = color;
+                float center = pair ? .33f + .34f * i : .5f;
+                var frame = Box("Recovery emblem", art, center - halfWidth, bottom, center + halfWidth, top);
+                Surface(frame, null, border).raycastTarget = false;
+                var inset = Box("Emblem inset", frame, .045f, .045f, .955f, .955f);
+                Surface(inset, null, fill).raycastTarget = false;
+                var sprite = icons[i];
+                if (sprite != null)
+                {
+                    var image = Surface(Box("Recovery icon", inset, .15f, .15f, .85f, .85f), sprite, Color.white);
+                    image.type = Image.Type.Simple;
+                    image.preserveAspect = true;
+                    image.raycastTarget = false;
+                }
+                else
+                    Label("Recovery symbol", inset, closeOrder ? "X" : "?", 0f, 0f, 1f, 1f, 40,
+                        TextAlignmentOptions.Center).color = Cream;
             }
+        }
 
+        private static Sprite ClosedChestSprite()
+        {
+            // The Chest resource icon depicts the portal. Use the closed world-drop chest frame.
+            var frames = PrefabsManager.Instance?.GetDropChest()?.GetComponent<SpriteAnimator>()?.GetSprites();
+            return frames?.FirstOrDefault(sprite => sprite != null && sprite.name == "Chest_0")
+                ?? Resources.FindObjectsOfTypeAll<Sprite>().FirstOrDefault(sprite => sprite.name == "Chest_0");
+        }
+
+        private void PriceLine(RectTransform card, int owned)
+        {
             if (Exchange || pools.Count == 0 || material == null)
             {
-                Text("Cost", Exchange ? "Already paid" : pools.Count == 0 ? "No complete pool to commission this visit" :
-                    "No payment material available", Color.white);
+                string cost = Exchange ? "Already Paid" : pools.Count == 0 ? "No Complete Pool" : "No Payment Material";
+                Label("Cost", card, cost, .09f, .036f, .91f, .092f, 19, TextAlignmentOptions.Center).color = Cream;
                 return;
             }
+
             if (material.icon != null)
             {
-                var icon = Box("Payment material", row, 0, .5f, 0, .5f);
-                icon.sizeDelta = new Vector2(32, 32);
-                var image = icon.gameObject.AddComponent<Image>();
-                image.sprite = material.icon;
-                image.preserveAspect = true;
-                image.raycastTarget = false;
-                icon.gameObject.AddComponent<LayoutElement>().preferredWidth = 32;
+                var icon = Surface(Box("Payment material", card, .07f, .038f, .155f, .092f), material.icon, Color.white);
+                icon.type = Image.Type.Simple;
+                icon.preserveAspect = true;
+                icon.raycastTarget = false;
             }
-            Text("Cost", $"Pay now: {Price} {material.GetName()}", Color.white);
-            Text("Stock", owned < Price ? $"In stock: {owned} (need {Price - owned} more)" : $"In stock: {owned}",
-                owned < Price ? (Color)new Color32(255, 209, 134, 255) : Color.white);
+            Label("Cost", card, $"Pay {Price} {material.GetName()}", .167f, .035f, .52f, .092f, 21).color = Cream;
+            string stock = owned < Price ? $"In stock: {owned} · need {Price - owned} more" : $"In stock: {owned}";
+            Label("Stock", card, stock, .51f, .035f, .94f, .092f, 21, TextAlignmentOptions.Right).color =
+                owned < Price ? (Color)new Color32(255, 209, 134, 255) : Cream;
         }
 
         private void Render(string focus = null)
         {
+            bool keepKeyboardFocus = page != null && PanelInput.HasKeyboardFocus(page);
             if (page != null) { page.gameObject.SetActive(false); Destroy(page.gameObject); }
             page = Box("Order desk", transform, .5f, .5f, .5f, .5f);
             page.sizeDelta = DeskSize;
             FitDesk();
             enteredFrame = Time.frameCount;
             var pool = pools.Count == 0 ? null : pools[index];
-            int owned = Spendable();
-            Label("Heading", page, reviewing ? "Confirm Commission" : "Caravan Commissions", .06f, .89f, .94f, .98f, 40, TextAlignmentOptions.Center).color = Color.white;
-            string terms = Exchange ? "A promised item is unavailable. Keep your order, or exchange it for a future visit." :
-                "Take one item today, or reserve a choice for the next item caravan.";
-            if (reviewing)
-                terms = Exchange ? (pool == null ? "Close this order without an item or a refund?" :
-                    "Replace your paid order with these choices at no extra cost?") :
-                    "Give up today's pick to choose one of these items at the next caravan?";
-            Label("Terms", page, terms, .04f, .806f, .96f, .887f, 26, TextAlignmentOptions.Center).color = Color.white;
-
-            string title = pool == null ? "No Eligible Pool" : pool.Title + " (Next Caravan)";
+            bool closingPaidOrder = Exchange && pool == null;
+            string title = pool == null ? "No Eligible Pool" : pool.Title;
+            var kingdom = pool?.Kingdom ?? Races.None;
             var items = pool?.Items ?? Array.Empty<Item>();
+            int owned = Spendable();
+
+            var heading = Label("Heading", page, reviewing ? "Confirm Commission" : "Caravan Commissions",
+                .035f, .905f, .965f, .987f, 40, TextAlignmentOptions.Center);
+            heading.color = Cream;
+            heading.fontStyle = FontStyles.Bold;
+            string terms = "Take one item today, or reserve one for the next item caravan.";
+            if (Exchange)
+            {
+                bool hasPaidItems = today.Any(item => item != null);
+                if (closingPaidOrder)
+                    terms = hasPaidItems ? "Choose a remaining paid item or close the order." :
+                        "No paid items or replacement pools are available.";
+                else
+                    terms = hasPaidItems ? "Choose a remaining paid item or review a replacement pool." :
+                        "Review a replacement pool at no extra cost.";
+            }
+            if (reviewing)
+                terms = Exchange ? (closingPaidOrder ? "Close this order without an item or a refund?" :
+                    "Replace your paid order with these choices at no extra cost?") :
+                    "Give up today's pick to reserve one of these items for the next item caravan?";
+            Label("Terms", page, terms, .035f, .815f, .965f, .895f, 25, TextAlignmentOptions.Center).color = Cream;
+
             if (reviewing)
             {
-                if (Exchange && pool == null)
-                    Column("Remaining Paid Choices", today, .256f, .744f, todayText);
-                else
-                    Column(title, items, .256f, .744f);
-                PriceLine(owned, .23f, .77f);
-                var pay = ActionButton(Exchange ? (pool == null ? "Close Paid Order" : "Exchange for Free") : "Pay and Commission",
-                    .37f, .63f, Pay, true, Exchange || (material != null && owned >= Price));
-                var back = BackButton();
-                Navigate(pay, back, back, back, back);
-                Navigate(back, pay, pay, pay, pay);
-                Focus(pay.interactable && !(Exchange && pool == null) ? pay.gameObject : back.gameObject);
+                var banner = closingPaidOrder
+                    ? ChoiceCard("Paid Choices", "Current Order", Races.None, today, .5f, out _, future: true,
+                        nativeText: todayText, recoveryArt: RecoveryArt.PaidItems)
+                    : ChoiceCard("Reserved Choices", title, kingdom, items, .5f, out _, future: true);
+                PriceLine((RectTransform)banner.parent.parent, owned);
+                const float gap = 16f;
+                float halfSpacing = (FooterSize.x + gap) / (2f * DeskSize.x);
+                var action = closingPaidOrder
+                    ? CancelFooter("Close Paid Order", .5f + halfSpacing, Pay)
+                    : Footer(Exchange ? "Exchange for Free" : "Pay and Commission", .5f + halfSpacing,
+                        Pay, nativeButton, Exchange || (material != null && owned >= Price));
+                var back = BackButton(.5f - halfSpacing);
+                Navigate(action, null, null, back, null);
+                Navigate(back, null, null, null, action);
+                FocusPanel(action.interactable && !closingPaidOrder ? action : back, keepKeyboardFocus);
             }
             else
             {
-                Column(Exchange ? "Remaining Paid Choices" : "Choose One Today", today, .028f, .484f, todayText);
+                var guestKingdom = Exchange ? Races.None : Pool.VisitingKingdom(visit.Guest);
+                string guestTitle = Exchange ? "Current Order" : Helper.Instance.GetKingdomTitle(guestKingdom);
+                float halfGap = (CardWidth + CardGap) / (2f * DeskSize.x);
+                ChoiceCard(Exchange ? "Back to Delivery" : "Today's Items", guestTitle, guestKingdom, today,
+                    .5f - halfGap, out var immediate, false, ReturnToItems, todayText,
+                    recoveryArt: Exchange ? RecoveryArt.PaidItems : RecoveryArt.None);
                 bool paging = pools.Count > 1;
-                var banner = Column(title, items, .516f, .972f, paging: paging);
-                PriceLine(owned, .513f, .975f);
-                var immediate = ActionButton(Exchange ? "Back to Delivery" : "Today's Items", .156f, .356f, ReturnToItems);
-                var review = ActionButton(Exchange && pool == null ? "Close Paid Order" : "Review Order", .634f, .854f,
-                    () => { reviewing = true; Render(); }, true, Exchange || pool != null);
+                var banner = ChoiceCard(closingPaidOrder ? "Close Paid Order" : "Review Order", title, kingdom, items,
+                    .5f + halfGap, out var review, true, () => { reviewing = true; Render(); }, enabled: Exchange || pool != null,
+                    recoveryArt: closingPaidOrder ? RecoveryArt.CloseOrder : RecoveryArt.None);
+                PriceLine((RectTransform)banner.parent.parent, owned);
                 Button prev = null, next = null;
                 if (paging)
                 {
-                    prev = Control("Previous Pool", "<", Box("Previous", banner, .024f, .20f, .131f, .80f), () => Cycle(-1));
-                    next = Control("Next Pool", ">", Box("Next", banner, .869f, .20f, .976f, .80f), () => Cycle(1));
+                    prev = Arrow(banner, "Previous Pool", "Less", -1);
+                    next = Arrow(banner, "Next Pool", "More", 1);
                 }
-                var leave = Control("Leave Caravan", "Leave Caravan", Box("Leave", page, .028f, .003f, .181f, .059f), Leave, quiet: true);
-                var back = BackButton();
+
+                var back = BackButton(.5f);
                 var primary = review.interactable ? review : immediate;
-                Navigate(immediate, prev, leave, null, review);
+                Navigate(immediate, null, back, null, review);
                 Navigate(review, next, back, immediate, null);
-                Navigate(prev, null, primary, next, next);
-                Navigate(next, null, primary, prev, prev);
-                Navigate(leave, immediate, null, null, back);
-                Navigate(back, primary, null, leave, null);
-                var initial = focus == "Previous Pool" ? prev : focus == "Next Pool" ? next : primary;
-                Focus((initial ?? primary).gameObject);
+                Navigate(prev, null, primary, immediate, next);
+                Navigate(next, null, primary, prev, null);
+                Navigate(back, primary, null, immediate, review);
+                Button initial = new[] { prev, next, immediate, review, back }.FirstOrDefault(
+                    button => button != null && button.interactable && button.name == focus);
+                FocusPanel(initial ?? primary, keepKeyboardFocus);
             }
-            RefreshPrompts(GamepadManager.Instance.GetCurrentControlScheme());
         }
 
-        private Button BackButton()
+        private Button Arrow(RectTransform parent, string name, string nativeName, int step)
         {
-            var rect = Box("Return", page, .844f, .002f, .972f, .065f);
-            var button = Control(reviewing ? "Back to Pool" : "Back", "", rect, Back, quiet: true);
-            backIcon = Box("Button prompt", rect, .10f, .16f, .34f, .84f).gameObject.AddComponent<Image>();
-            backIcon.preserveAspect = true;
-            backIcon.raycastTarget = false;
-            backPrompt = Label("Back prompt", rect, "", .37f, .06f, .95f, .94f, 22);
-            backPrompt.color = Color.white;
+            float left = step < 0 ? .015f : .867f;
+            var slot = Box(name, parent, left, .10f, left + .118f, .90f);
+            var template = arrowTemplate?.Find(nativeName)?.GetComponent<Button>();
+            if (template == null)
+                return PlateControl(name, step < 0 ? "<" : ">", slot, () => Cycle(step), nativeButton);
+
+            var button = Instantiate(template, slot, false);
+            var rect = (RectTransform)button.transform;
+            rect.name = name;
+            rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(.5f, .5f);
+            rect.sizeDelta = new Vector2(26f, 32f);
+            rect.anchoredPosition = Vector2.zero;
+            button.onClick = new Button.ButtonClickedEvent();
+            BindControl(rect, button, () => Cycle(step), true);
+            var arrowRim = ChoiceFrame.ArrowRim(step < 0);
+            if (arrowRim != null && button.targetGraphic is Image glyph)
+            {
+                var rim = Surface(Box("Arrow focus edge", glyph.rectTransform, -1f / 6f, -.125f, 7f / 6f, 1.125f),
+                    arrowRim, Color.white);
+                rim.type = Image.Type.Simple;
+                rim.raycastTarget = false;
+                button.GetComponent<PanelInput>().SetRim(rim);
+            }
             return button;
         }
 
-        private void RefreshPrompts(string scheme)
-        {
-            activeScheme = scheme;
-            var module = EventSystem.current?.currentInputModule as InputSystemUIInputModule;
-            var actions = GamepadManager.Instance.GetPlayerInput()?.actions;
-            string back = Binding(actions?.FindAction("UI/Cancel") ?? module?.cancel?.action, backIcon, scheme);
-            backPrompt.rectTransform.anchorMin = new Vector2(backIcon.enabled ? .37f : .04f, .06f);
-            backPrompt.alignment = backIcon.enabled ? TextAlignmentOptions.Left : TextAlignmentOptions.Center;
-            backPrompt.text = (back + "  Back").Trim();
-        }
+        private Button BackButton(float center) =>
+            CancelFooter(reviewing ? "Back to Pool" : "Back", center, Back, caption: "Back");
 
-        private static string Binding(InputAction action, Image image, string scheme)
+        private Button CancelFooter(string name, float center, Action click, string caption = null)
         {
-            // The shared keyboard/mouse scheme lists right-click before the keyboard Cancel binding.
-            if (scheme == "KeyboardMouse" && action != null)
+            var button = Footer(name, center, click, backTemplate, caption: caption);
+            if (button.image is Image plate && plate.sprite?.name == "UI_23")
             {
-                var key = action.controls.OfType<UnityEngine.InputSystem.Controls.KeyControl>().FirstOrDefault();
-                if (key != null)
-                {
-                    image.enabled = false;
-                    return key.displayName;
-                }
+                // Preserve the desk's deep red fill with the native resting plate.
+                plate.color = new Color32(164, 184, 255, 255);
             }
-            int binding = action == null || string.IsNullOrEmpty(scheme) ? -1 : action.GetBindingIndex(group: scheme);
-            var sprite = binding < 0 ? null : GamepadManager.Instance.GetButtonPrompt(action.bindings[binding].effectivePath);
-            image.sprite = sprite;
-            image.enabled = sprite != null;
-            return binding < 0 || sprite != null ? "" : action.GetBindingDisplayString(binding);
+            return button;
         }
 
-        private void Cycle(int step)
+        private void Cycle(int step, string focus = null)
         {
             index = (index + step + pools.Count) % pools.Count;
-            Render(step < 0 ? "Previous Pool" : "Next Pool");
+            Render(focus ?? (step < 0 ? "Previous Pool" : "Next Pool"));
         }
 
-        private Button ActionButton(string name, float left, float right, Action click, bool primary = false, bool enabled = true)
+        private Button Footer(string name, float center, Action click, Button template,
+            bool enabled = true, string caption = null)
         {
-            return Control(name, name, Box(name, page, left, .105f, right, .183f), click, primary, enabled);
+            var slot = Box("Footer slot", page, center, .036f, center, .036f);
+            slot.sizeDelta = FooterSize;
+            if (template == null)
+                return PlateControl(name, caption ?? name, slot, click, nativeButton, enabled, FooterEdgeScale);
+            var control = Instantiate(template, slot, false);
+            var rect = (RectTransform)control.transform;
+            rect.name = name;
+            rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(.5f, .5f);
+            rect.anchoredPosition = Vector2.zero;
+            rect.sizeDelta = FooterSize;
+            // A cloned selector may carry a native shortcut to its original merchant action.
+            foreach (var prompt in rect.GetComponentsInChildren<UIButtonPrompt>(true)) prompt.enabled = false;
+            var text = rect.Find("Text")?.GetComponent<TMP_Text>();
+            if (text != null)
+            {
+                var localized = text.GetComponent<LocalizeStringEvent>();
+                if (localized != null) localized.enabled = false;
+                text.gameObject.SetActive(true);
+                text.text = caption ?? name;
+                text.enableAutoSizing = true;
+                text.fontSizeMin = 14f;
+                text.fontSizeMax = 20f;
+            }
+            control.onClick = new Button.ButtonClickedEvent();
+            BindControl(rect, control, click, enabled);
+            ApplyPlateEdge(control, FooterEdgeScale);
+            control.gameObject.SetActive(true);
+            return control;
         }
 
-        private Button Control(string name, string caption, RectTransform rect, Action click, bool primary = false,
-            bool enabled = true, bool quiet = false)
+        private Button PlateControl(string name, string caption, RectTransform rect, Action click, Button template,
+            bool enabled = true, float edgeScale = 1f)
         {
             rect.name = name;
-            var template = primary && acceptTemplate != null ? acceptTemplate : nativeButton;
-            var sourceImage = template?.targetGraphic as Image;
-            var face = Surface(rect, sourceImage?.sprite, quiet ? (Color)new Color32(29, 28, 32, 245) :
-                sourceImage != null ? sourceImage.color : Color.white);
-            if (sourceImage != null) face.pixelsPerUnitMultiplier = sourceImage.pixelsPerUnitMultiplier * (quiet ? 2f : 1.5f);
-            var button = rect.gameObject.AddComponent<Button>();
-            button.targetGraphic = face;
+            var sourceImage = (template ?? nativeButton)?.targetGraphic as Image;
+            var face = Surface(rect, sourceImage?.sprite, sourceImage != null ? sourceImage.color : Parchment);
+            if (sourceImage != null) face.pixelsPerUnitMultiplier = sourceImage.pixelsPerUnitMultiplier;
+            var button = AddControl(rect, face, click, enabled);
             if (template != null)
             {
                 button.colors = template.colors;
                 button.spriteState = template.spriteState;
-                if (template.transition != Selectable.Transition.Animation)
-                    button.transition = template.transition;
+                if (template.transition != Selectable.Transition.Animation) button.transition = template.transition;
             }
-            if (primary)
-            {
-                // The prefab swaps gray sprites on focus. Tint its normal face so the
-                // prepaid action stays distinct from an unavailable payment.
-                button.transition = Selectable.Transition.ColorTint;
-                face.color = Color.white;
-                var colors = button.colors;
-                colors.normalColor = new Color32(255, 228, 166, 255);
-                colors.highlightedColor = colors.selectedColor = new Color32(255, 196, 80, 255);
-                colors.pressedColor = new Color32(235, 157, 65, 255);
-                colors.disabledColor = new Color32(167, 167, 167, 180);
-                colors.colorMultiplier = 1f;
-                button.colors = colors;
-            }
-            button.interactable = enabled;
-            button.onClick.AddListener(() => { if (Time.frameCount != enteredFrame && visit.Available) click(); });
-            // Keep the focus border independent of the face's native sprite swap or tint.
-            var border = Box("Focus", rect.parent, rect.anchorMin.x, rect.anchorMin.y, rect.anchorMax.x, rect.anchorMax.y);
-            border.offsetMin = rect.offsetMin - new Vector2(3f, 3f);
-            border.offsetMax = rect.offsetMax + new Vector2(3f, 3f);
-            border.SetSiblingIndex(rect.GetSiblingIndex());
-            border.gameObject.AddComponent<Image>().raycastTarget = false;
-            border.gameObject.SetActive(false);
-            var input = rect.gameObject.AddComponent<PanelInput>();
-            input.Owner = this;
-            input.FocusBorder = border.gameObject;
             if (caption.Length > 0)
+                Label("Label", rect, caption, .035f, .04f, .965f, .96f, 23, TextAlignmentOptions.Center).color =
+                    template != null && template == backTemplate ? Cream : Ink;
+            ApplyPlateEdge(button, edgeScale);
+            return button;
+        }
+
+        private static void ApplyPlateEdge(Button button, float edgeScale)
+        {
+            if (button.transition != Selectable.Transition.SpriteSwap || !(button.targetGraphic is Image plate))
+                return;
+            var states = button.spriteState;
+            var edge = states.selectedSprite;
+            if (edge == null || edge.border == Vector4.zero) return;
+
+            // Draw only the native selected edge. The plate keeps its native hover, press, and disabled fills.
+            plate.pixelsPerUnitMultiplier *= edgeScale;
+            states.selectedSprite = plate.sprite;
+            button.spriteState = states;
+
+            var rim = Surface(Box("Button focus edge", plate.rectTransform, 0, 0, 1, 1), edge, Color.white);
+            rim.fillCenter = false;
+            rim.pixelsPerUnitMultiplier = plate.pixelsPerUnitMultiplier;
+            rim.raycastTarget = false;
+            button.GetComponent<PanelInput>().SetRim(rim);
+        }
+
+        private Button AddControl(RectTransform rect, Image face, Action click, bool enabled, Sprite ring = null)
+        {
+            var button = rect.gameObject.AddComponent<Button>();
+            button.targetGraphic = face;
+            if (ring != null)
             {
-                var label = Label("Label", rect, caption, .025f, .03f, .975f, .97f, quiet ? 20 : 24, TextAlignmentOptions.Center);
-                label.color = quiet ? Color.white : Ink;
+                button.transition = Selectable.Transition.None;
+                if (!enabled) face.color = new Color(.72f, .72f, .72f);
+            }
+            BindControl(rect, button, click, enabled);
+            if (ring != null)
+            {
+                var rim = Surface(Box("Selection rim", rect, 0, 0, 1, 1), ring, Color.white);
+                rim.type = Image.Type.Simple;
+                rim.raycastTarget = false;
+                rim.rectTransform.offsetMin = new Vector2(-4f, -4f);
+                rim.rectTransform.offsetMax = new Vector2(4f, 4f);
+                rect.GetComponent<PanelInput>().SetRim(rim, showDarkAtRest: true);
             }
             return button;
+        }
+
+        private void BindControl(RectTransform rect, Button button, Action click, bool enabled)
+        {
+            button.interactable = enabled;
+            button.onClick.AddListener(() => { if (button.IsInteractable() && Time.frameCount != enteredFrame && visit.Available) click(); });
+            rect.gameObject.AddComponent<PanelInput>().Owner = this;
         }
 
         private static void Navigate(Button button, Button up, Button down, Button left, Button right)
@@ -430,6 +644,13 @@ namespace CaravanCommissions
                 selectOnDown = down != null && down.interactable ? down : null,
                 selectOnLeft = left != null && left.interactable ? left : null,
                 selectOnRight = right != null && right.interactable ? right : null };
+        }
+
+        private void FocusPanel(Button button, bool keepKeyboardFocus)
+        {
+            panelSelection = button.gameObject;
+            Focus(panelSelection);
+            if (keepKeyboardFocus) button.GetComponent<PanelInput>().RestoreKeyboardFocus();
         }
 
         internal static void Focus(GameObject target)
@@ -516,12 +737,6 @@ namespace CaravanCommissions
             if (first != null) Focus(first.gameObject);
         }
 
-        private void Leave()
-        {
-            Dismiss();
-            Plugin.Leave(merchant, visit);
-        }
-
         internal void Dismiss()
         {
             if (Plugin.Panel != this) return;
@@ -545,12 +760,113 @@ namespace CaravanCommissions
         }
     }
 
-    internal sealed class PanelInput : MonoBehaviour, ICancelHandler, ISelectHandler, IDeselectHandler
+    internal sealed class PanelInput : MonoBehaviour, ICancelHandler, ISelectHandler, IDeselectHandler,
+        IPointerEnterHandler, IPointerExitHandler, IPointerDownHandler, IPointerUpHandler, ISubmitHandler
     {
+        private static PanelInput keyboardFocus;
+        private static readonly Color DarkEdge = new Color32(6, 6, 8, 255);
         internal CommissionPanel Owner;
-        internal GameObject FocusBorder;
-        public void OnSelect(BaseEventData e) => FocusBorder.SetActive(true);
-        public void OnDeselect(BaseEventData e) => FocusBorder.SetActive(false);
+        private Button button;
+        private Image rim;
+        private PointerEventData pointer;
+        private bool darkAtRest, pressed;
+        private float submitUntil;
+
+        internal static bool HasKeyboardFocus(Transform page) =>
+            keyboardFocus != null && keyboardFocus.transform.IsChildOf(page) &&
+            EventSystem.current?.currentSelectedGameObject == keyboardFocus.gameObject &&
+            GamepadManager.Instance?.IsGamepadInUse() != true;
+
+        internal void RestoreKeyboardFocus()
+        {
+            keyboardFocus = this;
+            Refresh();
+        }
+
+        internal void SetRim(Image image, bool showDarkAtRest = false)
+        {
+            button = GetComponent<Button>();
+            rim = image;
+            darkAtRest = showDarkAtRest;
+            Refresh();
+        }
+
+        private void LateUpdate() => Refresh();
+
+        public void OnSelect(BaseEventData e)
+        {
+            if (e is AxisEventData && GamepadManager.Instance?.IsGamepadInUse() != true)
+                RestoreKeyboardFocus();
+            else
+                Refresh();
+        }
+
+        public void OnDeselect(BaseEventData e)
+        {
+            if (keyboardFocus == this) keyboardFocus = null;
+            submitUntil = 0f;
+            Refresh();
+        }
+
+        public void OnPointerEnter(PointerEventData e)
+        {
+            if (GamepadManager.Instance?.IsGamepadInUse() != true) keyboardFocus = null;
+            pointer = e;
+            Refresh();
+        }
+
+        public void OnPointerExit(PointerEventData e)
+        {
+            if (pointer == e) pointer = null;
+            Refresh();
+        }
+
+        public void OnPointerDown(PointerEventData e)
+        {
+            if (e.button != PointerEventData.InputButton.Left) return;
+            if (GamepadManager.Instance?.IsGamepadInUse() != true) keyboardFocus = null;
+            pressed = true;
+            Refresh();
+        }
+
+        public void OnPointerUp(PointerEventData e)
+        {
+            if (e.button != PointerEventData.InputButton.Left) return;
+            pressed = false;
+            Refresh();
+        }
+
+        public void OnSubmit(BaseEventData e)
+        {
+            if (button != null && button.IsInteractable())
+                submitUntil = Time.unscaledTime + Mathf.Max(.1f, button.colors.fadeDuration);
+            Refresh();
+        }
+
+        private void Refresh()
+        {
+            if (rim == null) return;
+            bool selected = EventSystem.current?.currentSelectedGameObject == gameObject;
+            bool gamepad = GamepadManager.Instance?.IsGamepadInUse() == true;
+            if (gamepad && keyboardFocus == this) keyboardFocus = null;
+            bool inputFocus = selected && (gamepad || keyboardFocus == this);
+            // Pointer enter also reaches the card containing the pool arrows. Light the closest button only.
+            var hit = pointer?.pointerCurrentRaycast.gameObject;
+            bool hovering = !gamepad && hit != null && hit.GetComponentInParent<Button>() == button;
+            bool lit = button.IsInteractable() && (hovering || pressed || inputFocus || Time.unscaledTime < submitUntil);
+            rim.enabled = lit || darkAtRest;
+            var color = lit ? Color.white : DarkEdge;
+            if (rim.color != color) rim.color = color;
+        }
+
+        private void OnDisable()
+        {
+            if (keyboardFocus == this) keyboardFocus = null;
+            pointer = null;
+            pressed = false;
+            submitUntil = 0f;
+        }
+
         public void OnCancel(BaseEventData e) { if (Owner != null) Owner.Back(); e.Use(); }
     }
 }

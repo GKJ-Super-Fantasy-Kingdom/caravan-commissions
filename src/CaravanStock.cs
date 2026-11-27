@@ -12,11 +12,14 @@ namespace CaravanCommissions
     internal sealed class Pool
     {
         internal string Title;
+        internal Races Kingdom;
         internal string[] Ids;
         internal Item[] Items;
         private static readonly MethodInfo GetItems = AccessTools.DeclaredMethod(typeof(GuestCaravan), "GetItems");
-        private static readonly AccessTools.FieldRef<GuestCaravan, Races> Kingdom =
+        private static readonly AccessTools.FieldRef<GuestCaravan, Races> GuestKingdom =
             AccessTools.FieldRefAccess<GuestCaravan, Races>("m_Kingdom");
+
+        internal static Races VisitingKingdom(GuestCaravan guest) => GuestKingdom(guest);
 
         internal static string Identify(string key) => AddressablesManager.Instance.GetItem(key)?.GetIdentifier();
         internal static List<string> Stock(GuestCaravan guest) => (List<string>)GetItems.Invoke(guest, null);
@@ -24,7 +27,7 @@ namespace CaravanCommissions
         internal static List<Pool> Eligible(GuestCaravan guest)
         {
             var pools = new List<Pool>();
-            var original = Kingdom(guest);
+            var original = GuestKingdom(guest);
             // GetItems reads the visitor's kingdom. Query it synchronously so patched
             // getters and runtime pool replacements participate just as they do on arrival.
             try
@@ -32,18 +35,18 @@ namespace CaravanCommissions
                 foreach (Races race in Enum.GetValues(typeof(Races)))
                 {
                     if (race == Races.None || race == RaceManager.Instance.GetRace()) continue;
-                    Kingdom(guest) = race;
+                    GuestKingdom(guest) = race;
                     var pages = OfferIds.Pages(OfferIds.FromPool(Stock(guest), Identify)).ToArray();
                     for (int i = 0; i < pages.Length; i++)
                     {
                         var title = Helper.Instance.GetKingdomTitle(race);
                         if (pages.Length > 1) title += $" ({i + 1}/{pages.Length})";
-                        pools.Add(new Pool { Title = title, Ids = pages[i],
+                        pools.Add(new Pool { Title = title, Kingdom = race, Ids = pages[i],
                             Items = pages[i].Select(AddressablesManager.Instance.GetItem).ToArray() });
                     }
                 }
             }
-            finally { Kingdom(guest) = original; }
+            finally { GuestKingdom(guest) = original; }
             return pools;
         }
     }
